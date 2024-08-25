@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde_derive::Deserialize;
 
 #[derive(Deserialize)]
@@ -16,9 +17,9 @@ struct MailConfig {
     max_age: u64,
     alarm_sender: String,
     alarm_subject: String,
-    alarm_template_keywords: std::collections::HashMap<String, String>,
+    alarm_template_keywords: HashMap<String, String>,
     mail_schema: String,
-    stichwoerter: std::collections::HashMap<String, String>,
+    stichwoerter: HashMap<String, String>,
     ignore_units: Vec<String>,
 }
 
@@ -28,13 +29,5 @@ struct SerialConfig {
     delimiter: String,
     baudrate: u32,
     alarm_list: Vec<String>,
-    rics: Vec<RicConfig>,
-}
-
-#[derive(Deserialize)]
-struct RicConfig {
-    key: String,
-    groups: Vec<String>,
-    vehicles: Vec<String>,
-    members: Vec<String>,
+    rics: HashMap<String, String>,
 }

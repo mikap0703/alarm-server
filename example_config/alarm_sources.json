@@ -61,31 +61,10 @@
         "VU mit Person",
         "Verkehrsunfall"
       ],
-      "rics": [
-        {
-          "key": "Fw MS VA",
-          "groups": [
-            "Mannschaft Gruppe"
-          ],
-          "vehicles": [
-            "FL MS 1/10",
-            "FL MS 1/31",
-            "FL MS 1/46"
-          ],
-          "members": []
-        },
-        {
-          "key": "FW MS DLK",
-          "groups": [
-            "DLK Gruppe"
-          ],
-          "vehicles": [
-            "FL MS 1/10",
-            "FL MS 1/31"
-          ],
-          "members": []
-        }
-      ]
+      "rics": {
+        "01A": "Musterstadt Vollalarm",
+        "02A": "Wehrführung"
+      }
     },
     {
       "port": "/dev/ttyUSB1",
@@ -95,18 +74,10 @@
         "Brand 1",
         "Brand 2"
       ],
-      "rics": [
-        {
-          "key": "Fw MS Test",
-          "groups": [
-            "Test Gruppe"
-          ],
-          "vehicles": [
-            "FL MS 2/10"
-          ],
-          "members": []
-        }
-      ]
+      "rics": {
+        "01A": "Musterstadt Vollalarm",
+        "02A": "Wehrführung"
+      }
     }
   ]
 }
