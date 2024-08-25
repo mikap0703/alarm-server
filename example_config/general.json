@@ -1,0 +1,23 @@
+{
+  "apis": [
+    {
+      "name": "Divera1",
+      "api": "Divera",
+      "api_key": "asdf1234"
+    },
+    {
+      "name": "Alamos1",
+      "api": "Alamos",
+      "api_key": "qwert5678"
+    },
+    {
+      "name": "Telegram1",
+      "api": "Telegram",
+      "api_key": "zxcv9876"
+    }
+  ],
+  "timeout": 5000,
+  "serial_dme": false,
+  "mail": true,
+  "alarm": false
+}

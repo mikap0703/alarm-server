@@ -1,0 +1,112 @@
+{
+  "mail_sources": [
+    {
+      "user": "einsatz@ffw-musterstadt.de",
+      "password": "123456",
+      "host": "imap.goneo.de",
+      "port": 993,
+      "tls": true,
+      "max_age": 300,
+      "alarm_sender": "alarm@leitstelle.de",
+      "alarm_subject": "Test",
+      "alarm_template_keywords": {
+        "FW Musterstadt Vollalarm": "Musterstadt Vollalarm",
+        "FW Musterstadt Wehrführung": "Wehrführung",
+        "FW Musterstadt DL": "DLK"
+      },
+      "mail_schema": "SecurCad",
+      "stichwoerter": {
+        "B1": "Brand 1",
+        "B2": "Brand 2",
+        "B3": "Brand 3",
+        "B4": "Brand 4",
+        "VUP": "VU mit Person",
+        "VU": "Verkehrsunfall"
+      },
+      "ignore_units": [
+        "FW Musterstadt Ersatzalarm"
+      ]
+    },
+    {
+      "user": "second@ffw-musterstadt.de",
+      "password": "abcdef",
+      "host": "imap.example.com",
+      "port": 993,
+      "tls": true,
+      "max_age": 600,
+      "alarm_sender": "*",
+      "alarm_subject": "*",
+      "alarm_template_keywords": {
+        "FW Musterstadt Vollalarm": "Musterstadt Vollalarm",
+        "FW Musterstadt Wehrführung": "Wehrführung"
+      },
+      "mail_schema": "CustomSchema",
+      "stichwoerter": {
+        "B1": "Brand 1",
+        "B2": "Brand 2"
+      },
+      "ignore_units": []
+    }
+  ],
+  "serial_sources": [
+    {
+      "port": "/dev/ttyUSB0",
+      "delimiter": "\\r\\n\\0",
+      "baudrate": 9600,
+      "alarm_list": [
+        "Brand 1",
+        "Brand 2",
+        "Brand 3",
+        "Brand 4",
+        "VU mit Person",
+        "Verkehrsunfall"
+      ],
+      "rics": [
+        {
+          "key": "Fw MS VA",
+          "groups": [
+            "Mannschaft Gruppe"
+          ],
+          "vehicles": [
+            "FL MS 1/10",
+            "FL MS 1/31",
+            "FL MS 1/46"
+          ],
+          "members": []
+        },
+        {
+          "key": "FW MS DLK",
+          "groups": [
+            "DLK Gruppe"
+          ],
+          "vehicles": [
+            "FL MS 1/10",
+            "FL MS 1/31"
+          ],
+          "members": []
+        }
+      ]
+    },
+    {
+      "port": "/dev/ttyUSB1",
+      "delimiter": "\\n",
+      "baudrate": 115200,
+      "alarm_list": [
+        "Brand 1",
+        "Brand 2"
+      ],
+      "rics": [
+        {
+          "key": "Fw MS Test",
+          "groups": [
+            "Test Gruppe"
+          ],
+          "vehicles": [
+            "FL MS 2/10"
+          ],
+          "members": []
+        }
+      ]
+    }
+  ]
+}
