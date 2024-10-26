@@ -14,9 +14,10 @@ impl AlarmHandler {
     }
 
     pub fn start(&self) {
+        let recv_alarms = self.recv_alarms.clone();
         thread::spawn(move || {
             loop {
-                match self.recv_alarms.recv() {
+                match recv_alarms.recv() {
                     Ok(alarm) => {
                         println!("AlarmHandler received alarm: {}", alarm.title);
                     }

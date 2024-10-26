@@ -1,4 +1,4 @@
-mod alarm_sources;
+pub(crate) mod alarm_sources;
 mod alarm_templates;
 mod general;
 
@@ -11,7 +11,7 @@ use crate::config::alarm_templates::AlarmTemplates;
 use crate::config::general::GeneralConfig;
 
 pub struct Configs {
-    alarm_sources: AlarmSources,
+    pub(crate) alarm_sources: AlarmSources,
     alarm_templates: AlarmTemplates,
     general: GeneralConfig
 }

@@ -3,16 +3,16 @@ use serde_derive::Deserialize;
 
 #[derive(Deserialize)]
 pub struct AlarmSources {
-    mail_sources: Vec<MailConfig>,
+    pub(crate) mail_sources: Vec<MailConfig>,
     serial_sources: Vec<SerialConfig>,
 }
 
 #[derive(Deserialize)]
-struct MailConfig {
-    user: String,
-    password: String,
-    host: String,
-    port: u16,
+pub struct MailConfig {
+    pub(crate) user: String,
+    pub(crate) password: String,
+    pub(crate) host: String,
+    pub(crate) port: u16,
     tls: bool,
     max_age: u64,
     alarm_sender: String,
