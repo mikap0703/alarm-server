@@ -3,28 +3,30 @@ use serde_derive::Deserialize;
 
 #[derive(Deserialize)]
 pub struct AlarmSources {
-    pub(crate) mail_sources: Vec<MailConfig>,
+    pub mail_sources: Vec<MailConfig>,
     serial_sources: Vec<SerialConfig>,
 }
 
 #[derive(Deserialize)]
 pub struct MailConfig {
-    pub(crate) user: String,
-    pub(crate) password: String,
-    pub(crate) host: String,
-    pub(crate) port: u16,
-    tls: bool,
-    max_age: u64,
-    alarm_sender: String,
-    alarm_subject: String,
-    alarm_template_keywords: HashMap<String, String>,
-    mail_schema: String,
-    stichwoerter: HashMap<String, String>,
-    ignore_units: Vec<String>,
+    pub name: String,
+    pub user: String,
+    pub password: String,
+    pub host: String,
+    pub port: u16,
+    pub tls: bool,
+    pub max_age: u64,
+    pub alarm_sender: String,
+    pub alarm_subject: String,
+    pub alarm_template_keywords: HashMap<String, String>,
+    pub mail_schema: String,
+    pub stichwoerter: HashMap<String, String>,
+    pub ignore_units: Vec<String>,
 }
 
 #[derive(Deserialize)]
 struct SerialConfig {
+    pub name: String,
     port: String,
     delimiter: String,
     baudrate: u32,
