@@ -19,6 +19,7 @@ dependencies = [
  "imap",
  "mail-parser",
  "mailparse",
+ "regex",
  "serde",
  "serde_derive",
  "serde_json",

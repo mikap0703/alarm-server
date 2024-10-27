@@ -4,6 +4,7 @@ mod config;
 mod alarm_handler;
 mod alarm;
 mod mail_handler;
+mod mail_parser;
 
 fn main() {
     let configs = match config::parse_configs() {
