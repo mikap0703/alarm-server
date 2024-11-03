@@ -1,3 +1,4 @@
+use flume::Sender;
 use imap::types::UnsolicitedResponse;
 use mailparse::{parse_mail, MailHeaderMap};
 use regex::Regex;
@@ -9,17 +10,18 @@ use crate::mail_parser::mock_parser::MockParser;
 
 pub struct MailHandler {
     config: MailConfig,
+    send_alarms: Sender<Alarm>,
     debug: bool,
     mailparser: Box<dyn MailParser>,
 }
 
 impl MailHandler {
-    pub fn new(config: MailConfig, debug: bool) -> MailHandler {
+    pub fn new(config: MailConfig, send_alarms: Sender<Alarm>, debug: bool) -> MailHandler {
         let mailparser: Box<dyn MailParser> = match config.mail_schema.as_str() {
             "SL-securCAD" => Box::new(SecurCadParser),
             _ => Box::new(MockParser),
         };
-        Self { config, debug, mailparser }
+        Self { config, send_alarms, debug, mailparser }
     }
 
     pub fn start(&self) {
@@ -38,28 +40,44 @@ impl MailHandler {
         'idle_loop: loop {
             // todo: maybe mails are ignored (multiple mails, same time)
             println!("Warten auf neue Mails...");
-            let idle_result = imap.idle().wait_while(|response| match response {
-                UnsolicitedResponse::Recent(_) => {
-                    println!("New mail received");
-                    true
+            let mut new_mail_id = None;
+            let idle_result = imap.idle().keepalive(true).wait_while(|response| match response {
+                UnsolicitedResponse::Exists(mail_id) => {
+                    new_mail_id = Some(mail_id);
+                    false
                 }
                 _ => {
                     println!("No new mail received");
-                    false
+                    true
                 },
             });
+
+            let new_mail_id = match new_mail_id {
+                Some(id) => {
+                    id
+                },
+                None => {
+                    continue 'idle_loop;
+                }
+            };
 
             match idle_result {
                 Ok(_) => {
                     // Get mail
-                    let messages = imap.fetch("*", "BODY[]").unwrap();
+                    let messages = imap.fetch(new_mail_id.to_string(), "BODY[]").unwrap();
                     let message = if let Some(m) = messages.iter().next() {
                         m
                     } else {
                         continue 'idle_loop;
                     };
 
-                    let body = message.body().expect("Message did not have a body!");
+                    let body = match message.body() {
+                        Some(body) => body,
+                        None => {
+                            println!("Could not get mail body");
+                            continue 'idle_loop;
+                        }
+                    };
 
                     let parsed_mail = match parse_mail(body) {
                         Ok(mail) => mail,

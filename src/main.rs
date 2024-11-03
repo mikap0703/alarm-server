@@ -23,7 +23,7 @@ fn main() {
 
     for mail_source in configs.alarm_sources.mail_sources {
         println!("Starting mail handler for");
-        let mail_handler = mail_handler::MailHandler::new(mail_source, true);
+        let mail_handler = mail_handler::MailHandler::new(mail_source, send_alarms.clone(), true);
         mail_handler.start();
         println!("Mail handler started");
     }
