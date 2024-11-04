@@ -28,7 +28,5 @@ WORKDIR /app
 # Copy the compiled binary from the build stage
 COPY --from=build /alarm-server/target/release/alarm-server /app/alarm-server
 
-RUN mkdir /app/config
-
 # Set the startup command to run your binary
 CMD ["./alarm-server"]

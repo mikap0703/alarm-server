@@ -8,6 +8,7 @@ mod mail_parser;
 mod apis;
 
 fn main() {
+    println!("Starting alarm handler");
     let configs = match config::parse_configs() {
         Ok(config) => config,
         Err(e) => {
