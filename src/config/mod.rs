@@ -23,22 +23,8 @@ fn load_config<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, Box<dyn E
 }
 
 pub fn parse_configs() -> Result<Configs, Box<dyn Error>> {
-    let config_dir = Path::new("config");
-
-    if !config_dir.exists() {
-        println!("Config directory does not exist");
-    }
-
-    // print all files in the config directory
-    for entry in fs::read_dir(config_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        println!("{:?}", path);
-    }
-
     let alarm_sources_config = Path::new("config/alarm_sources.json");
 
-    println!("lol2");
     let alarm_sources = match load_config::<AlarmSources>(alarm_sources_config) {
         Ok(config) => {
             config
@@ -50,7 +36,6 @@ pub fn parse_configs() -> Result<Configs, Box<dyn Error>> {
 
     let alarm_templates_config = Path::new("config/alarm_templates.json");
 
-    println!("lol");
     let alarm_templates = match load_config::<AlarmTemplates>(alarm_templates_config) {
         Ok(config) => {
             config
@@ -62,7 +47,6 @@ pub fn parse_configs() -> Result<Configs, Box<dyn Error>> {
 
     let general_config = Path::new("config/general.json");
 
-    println!("lol");
     let general = match load_config::<GeneralConfig>(general_config) {
         Ok(config) => {
             config
@@ -71,7 +55,6 @@ pub fn parse_configs() -> Result<Configs, Box<dyn Error>> {
             return Err(e);
         }
     };
-    println!("lol");
 
     // todo: validate configs (check if the api names are in the templates etc.)
 
