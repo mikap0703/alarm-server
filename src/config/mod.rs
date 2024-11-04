@@ -1,6 +1,6 @@
-pub(crate) mod alarm_sources;
-mod alarm_templates;
-mod general;
+pub mod alarm_sources;
+pub mod alarm_templates;
+pub mod general;
 
 use std::error::Error;
 use std::fs;
@@ -12,8 +12,8 @@ use crate::config::general::GeneralConfig;
 
 pub struct Configs {
     pub alarm_sources: AlarmSources,
-    alarm_templates: AlarmTemplates,
-    general: GeneralConfig
+    pub alarm_templates: AlarmTemplates,
+    pub general: GeneralConfig
 }
 
 fn load_config<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, Box<dyn Error>> {

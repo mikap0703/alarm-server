@@ -15,3 +15,4 @@ imap = "3.0.0-alpha.14"
 mailparse = "=0.8.1"
 mail-parser = "0.9.4"
 regex = "1.10.6"
+reqwest = { version = "0.10.0-alpha.2", features = ["blocking"] }

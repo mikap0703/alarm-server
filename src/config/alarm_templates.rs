@@ -2,17 +2,17 @@ use std::collections::HashMap;
 use serde_derive::Deserialize;
 
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct AlarmTemplates {
-    default: AlarmTemplateConfig,
+    pub default: HashMap<String, AlarmTemplateConfig>,
     #[serde(flatten)]
     templates: HashMap<String, AlarmTemplateConfig>,
 }
 
-#[derive(Deserialize, Debug)]
-struct AlarmTemplateConfig {
-    groups: Option<Vec<String>>,
-    vehicles: Option<Vec<String>>,
-    members: Option<Vec<String>>,
-    webhooks: Option<Vec<String>>,
+#[derive(Deserialize, Debug, Clone)]
+pub struct AlarmTemplateConfig {
+    pub groups: Option<Vec<String>>,
+    pub vehicles: Option<Vec<String>>,
+    pub members: Option<Vec<String>>,
+    pub webhooks: Option<Vec<String>>,
 }

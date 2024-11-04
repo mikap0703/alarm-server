@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::{Instant};
 
 #[derive(Debug)]
@@ -15,6 +16,13 @@ struct Address {
 struct Coordinates {
     lat: Option<f64>,
     lon: Option<f64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AlarmReceiver {
+    pub groups: Vec<String>,
+    pub vehicles: Vec<String>,
+    pub members: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -40,10 +48,12 @@ pub struct Alarm {
     pub time: Instant,
     pub address: Address,
     pub units: Vec<String>,
+    pub receiver: HashMap<String, AlarmReceiver>,
     pub groups: Vec<String>,
     pub vehicles: Vec<String>,
     pub members: Vec<String>,
     pub webhooks: Vec<String>,
+    pub alarm_sources: Vec<String>,
     pub mail_data: MailData,
     pub dme_data: DmeData,
 }
@@ -75,10 +85,12 @@ impl Alarm {
             time: Instant::now(),
             address: Address::new(),  // Use Address::new() here
             units: vec![],
+            receiver: HashMap::new(),
             groups: vec![],
             vehicles: vec![],
             members: vec![],
             webhooks: vec![],
+            alarm_sources: vec![],
             mail_data: MailData {
                 id: "".to_string(),
                 sender: "".to_string(),
@@ -135,6 +147,10 @@ impl Alarm {
 
     pub fn set_webhooks(&mut self, webhooks: Vec<String>) {
         self.webhooks = webhooks;
+    }
+
+    pub fn alarm_source(&mut self, alarm_source: String) {
+        self.alarm_sources.push(alarm_source);
     }
 
     pub fn set_mail_data(&mut self, mail_data: MailData) {
