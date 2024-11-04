@@ -2,22 +2,21 @@ use serde_derive::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct GeneralConfig {
-    apis: Vec<ApiConfig>,
+    pub(crate) apis: Vec<ApiConfig>,
     timeout: u64,
-    serial_dme: bool,
-    mail: bool,
+    source_priority: Vec<String>,
     alarm: bool,
 }
 
 #[derive(Deserialize, Debug)]
-struct ApiConfig {
-    name: String,
-    api: ApiType,
-    api_key: String,
+pub struct ApiConfig {
+    pub name: String,
+    pub api: ApiType,
+    pub api_key: String,
 }
 
 #[derive(Deserialize, Debug)]
-enum ApiType {
+pub enum ApiType {
     Divera,
     Alamos,
     Telegram,

@@ -1,6 +1,9 @@
+use std::thread;
+use std::time::Duration;
 use flume::Sender;
+use imap::{Connection, Session};
 use imap::types::UnsolicitedResponse;
-use mailparse::{parse_mail, MailHeaderMap};
+use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
 use regex::Regex;
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
@@ -13,6 +16,10 @@ pub struct MailHandler {
     send_alarms: Sender<Alarm>,
     debug: bool,
     mailparser: Box<dyn MailParser>,
+}
+
+struct MailData {
+    subject: String,
 }
 
 impl MailHandler {
@@ -41,7 +48,7 @@ impl MailHandler {
             // todo: maybe mails are ignored (multiple mails, same time)
             println!("Warten auf neue Mails...");
             let mut new_mail_id = None;
-            let idle_result = imap.idle().keepalive(true).wait_while(|response| match response {
+            let idle_result = imap.idle().timeout(Duration::new(120, 0)).keepalive(true).wait_while(|response| match response {
                 UnsolicitedResponse::Exists(mail_id) => {
                     new_mail_id = Some(mail_id);
                     false
@@ -143,10 +150,14 @@ impl MailHandler {
 
                     let mut alarm = Alarm::new();
 
+                    alarm.alarm_source(self.config.name.clone());
+
                     match self.mailparser.parse(&text_body, &html_body, &mut alarm) {
                         Ok(parsed) => println!("Parsed: {}", parsed),
                         Err(e) => println!("Could not parse mail: {}", e),
                     };
+
+                    self.send_alarms.send(alarm).unwrap();
                 }
                 Err(e) => println!("IDLE finished with error {:?}", e),
             }
