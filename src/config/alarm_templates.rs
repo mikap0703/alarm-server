@@ -6,7 +6,7 @@ use serde_derive::Deserialize;
 pub struct AlarmTemplates {
     pub default: HashMap<String, AlarmTemplateConfig>,
     #[serde(flatten)]
-    templates: HashMap<String, AlarmTemplateConfig>,
+    pub templates: HashMap<String, AlarmTemplateConfig>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

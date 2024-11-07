@@ -1,8 +1,6 @@
-use std::thread;
 use std::time::Duration;
 use flume::Sender;
-use imap::{Connection, Session};
-use imap::types::UnsolicitedResponse;
+use imap::types::{Fetch, Fetches, UnsolicitedResponse};
 use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
 use regex::Regex;
 use crate::alarm::Alarm;
@@ -42,7 +40,28 @@ impl MailHandler {
 
         imap.select("INBOX").expect("Could not select mailbox");
 
-        imap.debug = self.debug;
+        // imap.debug = self.debug;
+
+        'debug: {
+            if self.debug {
+                let messages: Fetches = match imap.fetch("*", "RFC822") {
+                    Ok(messages) => messages,
+                    Err(e) => {
+                        println!("Could not fetch mail: {:?}", e);
+                        break 'debug;
+                    }
+                };
+                let message: &Fetch = if let Some(m) = messages.iter().next() {
+                    m
+                } else {
+                    break 'debug;
+                };
+
+                self.handle_mail(message);
+
+                return;
+            }
+        }
 
         'idle_loop: loop {
             // todo: maybe mails are ignored (multiple mails, same time)
@@ -71,104 +90,117 @@ impl MailHandler {
             match idle_result {
                 Ok(_) => {
                     // Get mail
-                    let messages = imap.fetch(new_mail_id.to_string(), "BODY[]").unwrap();
-                    let message = if let Some(m) = messages.iter().next() {
+                    let messages: Fetches = match imap.fetch(new_mail_id.to_string(), "RFC822") {
+                        Ok(messages) => messages,
+                        Err(e) => {
+                            println!("Could not fetch mail: {:?}", e);
+                            continue 'idle_loop;
+                        }
+                    };
+                    let message: &Fetch = if let Some(m) = messages.iter().next() {
                         m
                     } else {
                         continue 'idle_loop;
                     };
 
-                    let body = match message.body() {
-                        Some(body) => body,
-                        None => {
-                            println!("Could not get mail body");
-                            continue 'idle_loop;
-                        }
-                    };
 
-                    let parsed_mail = match parse_mail(body) {
-                        Ok(mail) => mail,
-                        Err(e) => {
-                            println!("Could not parse mail: {:?}", e);
-                            continue 'idle_loop;
-                        }
-                    };
-
-                    // Get the subject and sender
-                    let subject = match parsed_mail.headers.get_first_value("Subject") {
-                        Ok(Some(s)) => s.trim().to_string(),
-                        _ => {
-                            println!("Mail did not have a subject");
-                            continue 'idle_loop;
-                        }
-                    };
-
-                    // let subject = subject.trim();
-
-                    let from = match parsed_mail.headers.get_first_value("From") {
-                        Ok(Some(from)) => from,
-                        _ => {
-                            println!("Mail did not have a sender");
-                            continue 'idle_loop;
-                        }
-                    };
-
-                    // from = "name <mail>"
-
-                    let mail_regex = Regex::new(r"<(.*?)>").unwrap();
-                    let sender = if let Some(captures) = mail_regex.captures(&*from) {
-                        // Get the first captured group
-                        captures.get(1).unwrap().as_str()
-                    } else {
-                        println!("No email address found.");
-                        "*"
-                    };
-
-                    let (text_body, html_body) = Self::extract_bodies(&parsed_mail);
-
-                    // validate the mail
-                    // check the mails subject
-                    let config_subject = self.config.alarm_subject.to_string();
-
-                    println!("{}", config_subject == subject);
-
-                    if (self.config.alarm_subject != "*") && (subject != config_subject) {
-                        println!("'{}' - '{}'", subject, self.config.alarm_subject);
-                        println!("Der Betreff ({}) stimmt nicht mit dem Betreff der Config überein...Mail wird ignoriert", subject);
-                        continue 'idle_loop;
-                    }
-
-
-                    // check the mails sender
-                    if (self.config.alarm_sender != "*") && (sender != self.config.alarm_sender) {
-                        println!("Der Absender ({}) stimmt nicht mit dem Absender der Config überein...Mail wird ignoriert", from);
-                        continue 'idle_loop;
-                    }
-
-                    // Parse the mail
-                    println!("{}: <{}> - {}", self.config.name, sender, subject);
-
-                    let mut alarm = Alarm::new();
-
-                    alarm.alarm_source(self.config.name.clone());
-
-                    match self.mailparser.parse(&text_body, &html_body, &mut alarm) {
-                        Ok(parsed) => println!("Parsed: {}", parsed),
-                        Err(e) => println!("Could not parse mail: {}", e),
-                    };
-
-                    self.send_alarms.send(alarm).unwrap();
+                    if self.handle_mail(message) { continue 'idle_loop; }
                 }
                 Err(e) => println!("IDLE finished with error {:?}", e),
             }
         }
     }
 
-    fn extract_bodies(parsed_mail: &mailparse::ParsedMail) -> (String, String) {
+    fn handle_mail(&self, message: &Fetch) -> bool {
+        let body = match message.body() {
+            Some(body) => body,
+            None => {
+                println!("Could not get mail body");
+                return true;
+            }
+        };
+
+        let parsed_mail = match parse_mail(body) {
+            Ok(mail) => mail,
+            Err(e) => {
+                println!("Could not parse mail: {:?}", e);
+                return true;
+            }
+        };
+
+        // Get the subject and sender
+        let subject = match parsed_mail.headers.get_first_value("Subject") {
+            Some(subject) => subject,
+            _ => {
+                println!("Mail did not have a subject");
+                return true;
+            }
+        };
+
+        // let subject = subject.trim();
+
+        let from = match parsed_mail.headers.get_first_value("From") {
+            Some(from) => from,
+            _ => {
+                println!("Mail did not have a sender");
+                return true;
+            }
+        };
+
+        // from = "name <mail>"
+
+        let mail_regex = Regex::new(r"<(.*?)>").unwrap();
+        let sender = if let Some(captures) = mail_regex.captures(&*from) {
+            // Get the first captured group
+            captures.get(1).unwrap().as_str()
+        } else {
+            println!("No email address found.");
+            "*"
+        };
+
+        let (text_body, html_body) = Self::extract_bodies(&parsed_mail);
+        println!("{}", text_body);
+        println!("{}", html_body);
+        // validate the mail
+        // check the mails subject
+        let config_subject = self.config.alarm_subject.to_string();
+
+        println!("{}", config_subject == subject);
+
+        if (self.config.alarm_subject != "*") && (subject != config_subject) {
+            println!("'{}' - '{}'", subject, self.config.alarm_subject);
+            println!("Der Betreff ({}) stimmt nicht mit dem Betreff der Config überein...Mail wird ignoriert", subject);
+            return true;
+        }
+
+
+        // check the mails sender
+        if (self.config.alarm_sender != "*") && (sender != self.config.alarm_sender) {
+            println!("Der Absender ({}) stimmt nicht mit dem Absender der Config überein...Mail wird ignoriert", from);
+            return true;
+        }
+
+        // Parse the mail
+        println!("{}: <{}> - {}", self.config.name, sender, subject);
+
+        let mut alarm = Alarm::new();
+
+        alarm.alarm_source(self.config.name.clone());
+
+        match self.mailparser.parse(&text_body, &html_body, &mut alarm, self.config.clone()) {
+            Ok(parsed) => println!("Parsed: {}", parsed),
+            Err(e) => println!("Could not parse mail: {}", e),
+        };
+
+        self.send_alarms.send(alarm).unwrap();
+        false
+    }
+
+    fn extract_bodies(parsed_mail: &ParsedMail) -> (String, String) {
         let mut text_body = String::new();
         let mut html_body = String::new();
 
-        fn traverse_parts(mail: &mailparse::ParsedMail, text_body: &mut String, html_body: &mut String) {
+        fn traverse_parts(mail: &ParsedMail, text_body: &mut String, html_body: &mut String) {
             for part in &mail.subparts {
                 let content_type = &part.ctype.mimetype;
                 let body = match part.get_body() {

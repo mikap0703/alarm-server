@@ -7,7 +7,7 @@ pub struct AlarmSources {
     serial_sources: Vec<SerialConfig>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct MailConfig {
     pub name: String,
     pub user: String,

@@ -1,4 +1,3 @@
-use reqwest::Client;
 use crate::alarm::Alarm;
 use crate::apis::Api;
 
@@ -16,8 +15,6 @@ impl Api for Telegram {
             return Err(format!("No receivers found for Telegram API: {}", self.name));
         }
         let receivers = receivers.unwrap();
-
-        // Create a new HTTP client        let client = Client::new();
 
         for receiver in receivers.members.clone() {
             println!("Sending message to: {}", receiver);

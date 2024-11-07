@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::time::{Instant};
+use crate::config::alarm_templates::AlarmTemplateConfig;
 
 #[derive(Debug)]
-struct Address {
+pub struct Address {
     street: String,
     city: String,
     object: String,
@@ -13,9 +14,9 @@ struct Address {
 }
 
 #[derive(Debug)]
-struct Coordinates {
-    lat: Option<f64>,
-    lon: Option<f64>,
+pub struct Coordinates {
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +27,7 @@ pub struct AlarmReceiver {
 }
 
 #[derive(Debug)]
-struct MailData {
+pub struct MailData {
     id: String,
     sender: String,
     subject: String,
@@ -35,7 +36,7 @@ struct MailData {
 }
 
 #[derive(Debug)]
-struct DmeData {
+pub struct DmeData {
     content: String,
 }
 
@@ -72,6 +73,34 @@ impl Address {
                 lon: None,
             },
         }
+    }
+
+    pub fn set_street(&mut self, street: String) {
+        self.street = street;
+    }
+
+    pub fn set_city(&mut self, city: String) {
+        self.city = city;
+    }
+
+    pub fn set_object(&mut self, object: String) {
+        self.object = object;
+    }
+
+    pub fn set_object_id(&mut self, object_id: String) {
+        self.object_id = object_id;
+    }
+
+    pub fn set_info(&mut self, info: String) {
+        self.info = info;
+    }
+
+    pub fn set_utm(&mut self, utm: String) {
+        self.utm = utm;
+    }
+
+    pub fn set_coords(&mut self, coords: Coordinates) {
+        self.coords = coords;
     }
 }
 
@@ -121,6 +150,10 @@ impl Alarm {
         self.text = text;
     }
 
+    pub fn add_to_text(&mut self, text: String) {
+        self.text.push_str(&text);
+    }
+
     pub fn set_time(&mut self, time: Instant) {
         self.time = time;
     }
@@ -131,6 +164,10 @@ impl Alarm {
 
     pub fn set_units(&mut self, units: Vec<String>) {
         self.units = units;
+    }
+
+    pub fn add_unit(&mut self, unit: String) {
+        self.units.push(unit);
     }
 
     pub fn set_groups(&mut self, groups: Vec<String>) {
@@ -159,5 +196,20 @@ impl Alarm {
 
     pub fn set_dme_data(&mut self, dme_data: DmeData) {
         self.dme_data = dme_data;
+    }
+
+    pub fn apply_template(&mut self, template: AlarmTemplateConfig) {
+        if let Some(groups) = template.groups {
+            self.groups = groups;
+        }
+        if let Some(vehicles) = template.vehicles {
+            self.vehicles = vehicles;
+        }
+        if let Some(members) = template.members {
+            self.members = members;
+        }
+        if let Some(webhooks) = template.webhooks {
+            self.webhooks = webhooks;
+        }
     }
 }
