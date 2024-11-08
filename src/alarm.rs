@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::time::{Instant};
-use crate::config::alarm_templates::AlarmTemplateConfig;
+use crate::config::alarm_templates::AlarmTemplateReceiver;
 
 #[derive(Debug)]
 pub struct Address {
@@ -50,6 +50,7 @@ pub struct Alarm {
     pub address: Address,
     pub units: Vec<String>,
     pub receiver: HashMap<String, AlarmReceiver>,
+    pub template_names: Vec<String>,
     pub groups: Vec<String>,
     pub vehicles: Vec<String>,
     pub members: Vec<String>,
@@ -115,6 +116,7 @@ impl Alarm {
             address: Address::new(),  // Use Address::new() here
             units: vec![],
             receiver: HashMap::new(),
+            template_names: vec![],
             groups: vec![],
             vehicles: vec![],
             members: vec![],
@@ -198,18 +200,35 @@ impl Alarm {
         self.dme_data = dme_data;
     }
 
-    pub fn apply_template(&mut self, template: AlarmTemplateConfig) {
-        if let Some(groups) = template.groups {
-            self.groups = groups;
-        }
-        if let Some(vehicles) = template.vehicles {
-            self.vehicles = vehicles;
-        }
-        if let Some(members) = template.members {
-            self.members = members;
-        }
-        if let Some(webhooks) = template.webhooks {
-            self.webhooks = webhooks;
+    pub fn add_template_name(&mut self, name: String) {
+        self.template_names.push(name);
+    }
+
+    pub fn apply_template(&mut self, target: String, template_receiver: AlarmTemplateReceiver) {
+        match template_receiver {
+            AlarmTemplateReceiver::Api { members, groups, vehicles } => {
+                let receiver = self.receiver.entry(target).or_insert(AlarmReceiver {
+                    groups: vec![],
+                    vehicles: vec![],
+                    members: vec![],
+                });
+
+                if let Some(members) = members {
+                    receiver.members = members;
+                }
+
+                if let Some(groups) = groups {
+                    receiver.groups = groups;
+                }
+
+                if let Some(vehicles) = vehicles {
+                    receiver.vehicles = vehicles;
+                }
+            }
+            AlarmTemplateReceiver::Webhooks( webhooks ) => {
+                // add webhooks to alarm
+                self.webhooks.extend(webhooks);
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use crate::alarm::{Alarm, AlarmReceiver};
+use crate::alarm::{Alarm};
 use crate::apis::Api;
 use crate::apis::divera_v2::DiveraV2;
 use crate::apis::mock_api::MockApi;
@@ -52,14 +52,34 @@ impl AlarmHandler {
                     Ok(mut alarm) => {
                         println!("AlarmHandler received alarm: {}", alarm.title);
 
-                        let default_template = alarm_templates.default.clone();
+                        // apply default template
+                        match alarm_templates.templates.get("default") {
+                            Some(template) => {
+                                for (api_name, receiver) in template.apis.clone() {
+                                    println!("Applying default template for {}", api_name);
+                                    alarm.apply_template(api_name.clone(), receiver);
+                                }
+                            },
+                            None => {
+                                println!("Default template not found");
+                                break;
+                            }
+                        };
 
-                        for (name, receivers) in default_template {
-                            alarm.receiver.insert(name, AlarmReceiver {
-                                groups: receivers.groups.unwrap_or_else(|| Vec::new()),
-                                vehicles: receivers.vehicles.unwrap_or_else(|| Vec::new()),
-                                members: receivers.members.unwrap_or_else(|| Vec::new()),
-                            });
+                        // apply remaining templates from alarm
+                        for template_name in alarm.template_names.clone() {
+                            match alarm_templates.templates.get(&template_name) {
+                                Some(template) => {
+                                    for (api_name, receiver) in template.apis.clone() {
+                                        println!("Applying template {} for {}", template_name, api_name);
+                                        alarm.apply_template(api_name.clone(), receiver);
+                                    }
+                                },
+                                None => {
+                                    println!("Template {} not found", template_name);
+                                    break;
+                                }
+                            };
                         }
 
                         let apis = apis.lock().unwrap();
@@ -75,7 +95,6 @@ impl AlarmHandler {
 
                             api.trigger_alarm(&alarm).unwrap();
                         }
-
                     }
                     Err(e) => {
                         eprintln!("Error receiving alarm: {}", e);

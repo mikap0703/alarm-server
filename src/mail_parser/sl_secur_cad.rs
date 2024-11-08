@@ -142,17 +142,19 @@ impl MailParser for SecurCadParser {
         };
 
         let lat_lon_reg = regex::Regex::new(r"/\d+,\d+/").unwrap();
-        let lat = match lat_lon_reg.find(&lat_lon[0]) {
+        // parsing latitude - geogr. Breite
+        let lat = match lat_lon_reg.captures(&lat_lon[1]) {
             Some(lat) => {
-                let lat_temp = lat.as_str().replace(",", "."); // replace , with .
-                lat_temp.parse::<f64>().ok()
+                let lat_temp = lat[1].replace(",", "."); // replace ',' with '.'
+                lat_temp.parse::<f64>().ok()  // parse as f64
             },
-            None => None
+            None => None,
         };
 
-        let lon = match lat_lon_reg.find(&lat_lon[1]) {
+        // parsing longitude - geogr. Länge
+        let lon = match lat_lon_reg.captures(&lat_lon[0]) {
             Some(lon) => {
-                let lon_temp = lon.as_str().replace(",", "."); // replace , with .
+                let lon_temp = lon[1].replace(",", "."); // replace , with .
                 lon_temp.parse::<f64>().ok()
             },
             None => None
@@ -175,41 +177,35 @@ impl MailParser for SecurCadParser {
             0
         };
 
-        let unit_end_index = if let Some(index) = key_order.iter().position(|x| x == " Meldender des Hilfeersuchens") {
-            index - 1
+        let unit_end_index = if let Some(index) = key_order.iter().position(|x| x == "Meldender des Hilfeersuchens") {
+            index
         } else {
             0
         };
 
-        // vec of unit keys
-        let unit_keys = &key_order[unit_start_index..unit_end_index];
+        if unit_end_index > unit_start_index {
+            // vec of unit keys
+            let unit_keys = &key_order[unit_start_index..unit_end_index];
 
-        for key in unit_keys {
-            if table.contains_key(key) {
-                // only add unit if it's not in the ignore_units list
-                if config.ignore_units.contains(&key.to_string()) {
-                    continue;
-                } else {
-                    alarm.add_unit(key.to_string());
+            for key in unit_keys {
+                if table.contains_key(key) {
+                    // only add unit if it's not in the ignore_units list
+                    if config.ignore_units.contains(&key.to_string()) {
+                        continue;
+                    } else {
+                        alarm.add_unit(key.to_string());
+                    }
+                }
+            }
+
+            // save template names to apply them later
+            for unit in alarm.units.clone().iter() {
+                // look if a template name is given for a unit
+                if let Some(template_name) = config.alarm_template_keywords.get(unit) {
+                    alarm.add_template_name(template_name.clone());
                 }
             }
         }
-
-        /*
-        // apply templates based on the units
-        for unit in alarm.units.iter() {
-            // look if a template can be applied for the unit
-            if let Some(template_name) = config.alarm_template_keywords.get(unit) {
-                // get the template
-                if let Some(_template) = templates.templates.get(template_name) {
-                    // todo: apply the template
-                    // alarm.apply_template(template);
-                }
-            }
-        }
-
-         */
-
 
         //
         Ok(format!("Parsed SecurCad: {}", text_body))
