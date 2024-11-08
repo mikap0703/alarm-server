@@ -1,5 +1,7 @@
 use crate::alarm::Alarm;
 use crate::apis::Api;
+use reqwest::Client;
+use std::future::Future;
 
 pub struct Telegram {
     pub name: String,
@@ -7,26 +9,41 @@ pub struct Telegram {
 }
 
 impl Api for Telegram {
-    fn trigger_alarm(&self, alarm: &Alarm) -> Result<(), String> {
-        println!("Telegram API: Trigger");
-        let receivers = alarm.receiver.get(self.name.as_str());
+    fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Box<dyn Future<Output = Result<(), String>> + Send + 'a> {
+        Box::new(async move {
+            println!("Telegram API: Trigger");
+            let receivers = alarm.receiver.get(self.name.as_str());
 
-        if receivers.is_none() {
-            return Err(format!("No receivers found for Telegram API: {}", self.name));
-        }
-        let receivers = receivers.unwrap();
+            if receivers.is_none() {
+                return Err(format!("No receivers found for Telegram API: {}", self.name));
+            }
+            let receivers = receivers.unwrap();
 
-        for receiver in receivers.members.clone() {
-            println!("Sending message to: {}", receiver);
+            let client = Client::new();
 
-            let _res = reqwest::blocking::get(&format!("https://api.telegram.org/bot{}/sendmessage?chat_id={}&text=Hello%20World", self.bot_token, receiver));
-        }
+            for receiver in receivers.members.clone() {
+                println!("Sending message to: {}", receiver);
 
-        Ok(())
+                let url = format!(
+                    "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Hello%20World",
+                    self.bot_token, receiver
+                );
+
+                let res = client.get(&url).send().await;
+
+                if let Err(err) = res {
+                    eprintln!("Error sending message: {}", err);
+                }
+            }
+
+            Ok(())
+        })
     }
 
-    fn update_alarm(&self, _alarm: &Alarm) -> Result<(), String> {
-        println!("Divera API: Updating alarm with key: {}", self.bot_token);
-        Ok(())
+    fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Box<dyn Future<Output = Result<(), String>> + Send + 'a> {
+        Box::new(async move {
+            println!("Telegram API: Updating alarm with key: {}", self.bot_token);
+            Ok(())
+        })
     }
 }

@@ -7,7 +7,8 @@ mod mail_handler;
 mod mail_parser;
 mod apis;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let configs = match config::parse_configs() {
         Ok(config) => config,
         Err(e) => {

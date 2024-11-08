@@ -46,7 +46,9 @@ impl AlarmHandler {
         let recv_alarms = self.recv_alarms.clone();
         let apis = self.apis.clone();
         let alarm_templates = self.alarm_templates.clone();
-        thread::spawn( move || {
+
+        // Use tokio::spawn to create an async task
+        tokio::spawn(async move {
             loop {
                 match recv_alarms.recv() {
                     Ok(mut alarm) => {
@@ -93,7 +95,7 @@ impl AlarmHandler {
                                 }
                             };
 
-                            api.trigger_alarm(&alarm).unwrap();
+                            api.trigger_alarm(&alarm);
                         }
                     }
                     Err(e) => {
