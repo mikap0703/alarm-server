@@ -43,7 +43,9 @@ impl MailHandler {
         imap.select("INBOX").expect("Could not select mailbox");
 
         // imap.debug = self.debug;
+        imap.debug = true;
 
+        /*
         'debug: {
             if self.debug {
                 let messages: Fetches = match imap.fetch("*", "RFC822") {
@@ -65,9 +67,12 @@ impl MailHandler {
             }
         }
 
+         */
+
         'idle_loop: loop {
             // todo: maybe mails are ignored (multiple mails, same time)
             println!("Warten auf neue Mails...");
+            println!("{}", self.config.user);
             let mut new_mail_id = None;
             let idle_result = imap.idle().timeout(Duration::new(120, 0)).keepalive(true).wait_while(|response| match response {
                 UnsolicitedResponse::Exists(mail_id) => {
