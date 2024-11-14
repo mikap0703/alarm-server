@@ -2,6 +2,7 @@ use crate::alarm::Alarm;
 use crate::apis::Api;
 use reqwest::Client;
 use std::future::Future;
+use urlencoding::encode;
 
 pub struct Telegram {
     pub name: String,
@@ -25,8 +26,8 @@ impl Api for Telegram {
                 println!("Sending message to: {}", receiver);
 
                 let url = format!(
-                    "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Hello%20World",
-                    self.bot_token, receiver
+                    "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}",
+                    self.bot_token, receiver, encode(&*alarm.text)
                 );
 
                 let res = client.get(&url).send().await;

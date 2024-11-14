@@ -8,6 +8,7 @@ use crate::config::alarm_sources::MailConfig;
 use crate::mail_parser::{MailParser};
 use crate::mail_parser::sl_secur_cad::SecurCadParser;
 use crate::mail_parser::mock_parser::MockParser;
+use crate::mail_parser::plaintext_parser::PlaintextParser;
 
 pub struct MailHandler {
     config: MailConfig,
@@ -24,6 +25,7 @@ impl MailHandler {
     pub fn new(config: MailConfig, send_alarms: Sender<Alarm>, debug: bool) -> MailHandler {
         let mailparser: Box<dyn MailParser> = match config.mail_schema.as_str() {
             "SL-securCAD" => Box::new(SecurCadParser),
+            "Plaintext" => Box::new(PlaintextParser),
             _ => Box::new(MockParser),
         };
         Self { config, send_alarms, debug, mailparser }

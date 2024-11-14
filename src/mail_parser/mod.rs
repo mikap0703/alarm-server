@@ -1,6 +1,7 @@
 pub mod sl_secur_cad;
 pub mod mock_parser;
 mod helpers;
+pub mod plaintext_parser;
 
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
