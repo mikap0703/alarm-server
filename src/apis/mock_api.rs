@@ -1,4 +1,4 @@
-use std::future::Future;
+use async_trait::async_trait;
 use crate::alarm::Alarm;
 use crate::apis::Api;
 
@@ -7,18 +7,15 @@ pub struct MockApi {
     pub api_key: String,
 }
 
+#[async_trait]
 impl Api for MockApi {
-    fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Box<dyn Future<Output = Result<(), String>> + Send + 'a> {
-        Box::new(async move {
-            println!("Divera API: Triggering alarm with key: {}", self.api_key);
-            Ok(())
-        })
+    async fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String> {
+        println!("Mock API: trigger alarm");
+        Ok(())
     }
 
-    fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Box<dyn Future<Output = Result<(), String>> + Send + 'a> {
-        Box::new(async move {
-            println!("Divera API: Updating alarm with key: {}", self.api_key);
-            Ok(())
-        })
+    async fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Result<(), String> {
+        println!("Mock API: Updating alarm");
+        Ok(())
     }
 }

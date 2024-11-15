@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+use tokio::sync::Mutex;
 use crate::alarm::{Alarm};
 use crate::apis::Api;
 use crate::apis::divera_v2::DiveraV2;
@@ -83,7 +84,7 @@ impl AlarmHandler {
                             };
                         }
 
-                        let apis = apis.lock().unwrap();
+                        let apis = apis.lock().await;
 
                         for (api, receiver) in alarm.receiver.clone() {
                             let api = match apis.get(&api) {
@@ -94,7 +95,7 @@ impl AlarmHandler {
                                 }
                             };
 
-                            let _ = api.trigger_alarm(&alarm);
+                            let _ = api.trigger_alarm(&alarm).await;
                         }
                     }
                     Err(e) => {

@@ -1,4 +1,4 @@
-use std::future::Future;
+use async_trait::async_trait;
 use crate::alarm::Alarm;
 use crate::apis::Api;
 
@@ -7,18 +7,15 @@ pub struct DiveraV2 {
     pub api_key: String,
 }
 
+#[async_trait]
 impl Api for DiveraV2 {
-    fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Box<dyn Future<Output = Result<(), String>> + Send + 'a> {
-        Box::new(async move {
-            println!("Divera API: Trigger");
-            Ok(())
-        })
+    async fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String> {
+        println!("Divera API: trigger alarm");
+        Ok(())
     }
 
-    fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Box<dyn Future<Output = Result<(), String>> + Send + 'a> {
-        Box::new(async move {
-            println!("Divera API: Updating alarm");
-            Ok(())
-        })
+    async fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Result<(), String> {
+        println!("Divera API: Updating alarm");
+        Ok(())
     }
 }

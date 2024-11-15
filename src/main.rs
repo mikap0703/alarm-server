@@ -25,7 +25,7 @@ async fn main() {
     alarm_handler.start();
 
     for mail_source_config in configs.alarm_sources.mail_sources {
-        let mail_handler = mail_handler::MailHandler::new(mail_source_config, send_alarms.clone(), false);
+        let mail_handler = mail_handler::MailHandler::new(mail_source_config, send_alarms.clone(), true);
         mail_handler.start();
     }
 }
