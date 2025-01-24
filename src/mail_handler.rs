@@ -1,8 +1,10 @@
+use std::sync::Arc;
 use std::time::Duration;
 use flume::Sender;
 use imap::types::{Fetch, Fetches, UnsolicitedResponse};
 use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
 use regex::Regex;
+use tokio::sync::Mutex;
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
 use crate::mail_parser::{MailParser};
@@ -15,6 +17,7 @@ pub struct MailHandler {
     send_alarms: Sender<Alarm>,
     debug: bool,
     mailparser: Box<dyn MailParser>,
+    seen_mails: Arc<Mutex<Vec<u32>>>
 }
 
 struct MailData {
@@ -28,7 +31,9 @@ impl MailHandler {
             "Plaintext" => Box::new(PlaintextParser),
             _ => Box::new(MockParser),
         };
-        Self { config, send_alarms, debug, mailparser }
+        let seen_mails = Arc::new(Mutex::new(Vec::new()));
+
+        Self { config, send_alarms, debug, mailparser, seen_mails }
     }
 
     pub fn start(&self) {
@@ -44,30 +49,6 @@ impl MailHandler {
 
         // imap.debug = self.debug;
         imap.debug = true;
-
-        /*
-        'debug: {
-            if self.debug {
-                let messages: Fetches = match imap.fetch("*", "RFC822") {
-                    Ok(messages) => messages,
-                    Err(e) => {
-                        println!("Could not fetch mail: {:?}", e);
-                        break 'debug;
-                    }
-                };
-                let message: &Fetch = if let Some(m) = messages.iter().next() {
-                    m
-                } else {
-                    break 'debug;
-                };
-
-                self.handle_mail(message);
-
-                return;
-            }
-        }
-
-         */
 
         'idle_loop: loop {
             // todo: maybe mails are ignored (multiple mails, same time)
@@ -166,8 +147,7 @@ impl MailHandler {
         };
 
         let (text_body, html_body) = Self::extract_bodies(&parsed_mail);
-        println!("{}", text_body);
-        println!("{}", html_body);
+
         // validate the mail
         // check the mails subject
         let config_subject = self.config.alarm_subject.to_string();
@@ -195,7 +175,7 @@ impl MailHandler {
         alarm.alarm_source(self.config.name.clone());
 
         match self.mailparser.parse(&text_body, &html_body, &mut alarm, self.config.clone()) {
-            Ok(parsed) => println!("Parsed: {}", parsed),
+            Ok(_) => {},
             Err(e) => println!("Could not parse mail: {}", e),
         };
 
@@ -206,6 +186,18 @@ impl MailHandler {
     fn extract_bodies(parsed_mail: &ParsedMail) -> (String, String) {
         let mut text_body = String::new();
         let mut html_body = String::new();
+
+        let body = &parsed_mail.get_body();
+        match body {
+            Ok(body_str) => {
+                match parsed_mail.ctype.mimetype.as_str() {
+                    "text/plain" => text_body = body_str.to_string(),
+                    "text/html" => html_body = body_str.to_string(),
+                    _ => {}
+                }
+            }
+            Err(_) => {}
+        }
 
         fn traverse_parts(mail: &ParsedMail, text_body: &mut String, html_body: &mut String) {
             for part in &mail.subparts {

@@ -143,22 +143,37 @@ impl MailParser for SecurCadParser {
 
         let lat_lon_reg = regex::Regex::new(r"/\d+,\d+/").unwrap();
         // parsing latitude - geogr. Breite
-        let lat = match lat_lon_reg.captures(&lat_lon[1]) {
-            Some(lat) => {
-                let lat_temp = lat[1].replace(",", "."); // replace ',' with '.'
-                lat_temp.parse::<f64>().ok()  // parse as f64
+        let lat = match lat_lon.get(1) {
+            Some(lat_str) => match lat_lon_reg.captures(lat_str) {
+                Some(lat) => {
+                    if let Some(lat_val) = lat.get(1) {
+                        let lat_temp = lat_val.as_str().replace(",", "."); // replace ',' with '.'
+                        lat_temp.parse::<f64>().ok() // parse as f64
+                    } else {
+                        None
+                    }
+                },
+                None => None,
             },
             None => None,
         };
 
         // parsing longitude - geogr. Länge
-        let lon = match lat_lon_reg.captures(&lat_lon[0]) {
-            Some(lon) => {
-                let lon_temp = lon[1].replace(",", "."); // replace , with .
-                lon_temp.parse::<f64>().ok()
+        let lon = match lat_lon.get(0) {
+            Some(lon_str) => match lat_lon_reg.captures(lon_str) {
+                Some(lon) => {
+                    if let Some(lon_val) = lon.get(1) {
+                        let lon_temp = lon_val.as_str().replace(",", "."); // replace , with .
+                        lon_temp.parse::<f64>().ok()
+                    } else {
+                        None
+                    }
+                },
+                None => None,
             },
-            None => None
+            None => None,
         };
+
 
         alarm.address.set_coords(Coordinates { lat, lon });
 
@@ -206,6 +221,8 @@ impl MailParser for SecurCadParser {
                 }
             }
         }
+
+        println!("{:?}", alarm);
 
         //
         Ok(format!("Parsed SecurCad: {}", text_body))
