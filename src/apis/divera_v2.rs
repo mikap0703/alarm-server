@@ -12,11 +12,13 @@ pub struct DiveraV2 {
 impl Api for DiveraV2 {
     async fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String> {
         info!("Divera API: trigger alarm");
+        info!("{:?}", alarm);
         Ok(())
     }
 
-    async fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Result<(), String> {
+    async fn update_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String> {
         info!("Divera API: Updating alarm");
+        info!("{:?}", alarm);
         Ok(())
     }
 }

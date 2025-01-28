@@ -6,7 +6,7 @@ use log::debug;
 pub struct PlaintextParser;
 
 impl MailParser for PlaintextParser {
-    fn parse(&self, text_body: &str, html_body: &str, alarm: &mut Alarm, config: MailConfig) -> Result<String, String> {
+    fn parse(&self, text_body: &str, html_body: &str, alarm: &mut Alarm, _config: MailConfig) -> Result<String, String> {
         debug!("text: {}", text_body);
         debug!("html: {}", html_body);
 

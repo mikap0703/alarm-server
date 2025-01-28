@@ -87,7 +87,7 @@ impl AlarmHandler {
 
                         let apis = apis.lock().await;
 
-                        for (api, receiver) in alarm.receiver.clone() {
+                        for (api, _receiver) in alarm.receiver.clone() {
                             let api = match apis.get(&api) {
                                 Some(api) => api,
                                 None => {
