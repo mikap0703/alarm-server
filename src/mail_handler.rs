@@ -5,6 +5,7 @@ use flume::Sender;
 use imap::{Connection, Session};
 use imap::types::{Fetches, UnsolicitedResponse};
 use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
+use regex::Regex;
 use tokio::sync::Mutex;
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
@@ -142,6 +143,7 @@ impl MailHandler {
     }
 
     fn check_for_new_mail(imap: &mut Session<Connection>, send_mails: Sender<MailData>) {
+        let last_seen_message_id = 0;
         loop {
             println!("Periodically checking for new mail...");
 
@@ -154,8 +156,14 @@ impl MailHandler {
                 }
             };
 
+            println!("Found {} unseen messages", message_ids.len());
+
             // Proceed only if there are any unseen messages
             if let Some(&last_message_id) = message_ids.iter().max() {
+                if last_message_id == last_seen_message_id {
+                    println!("No new mail found");
+                    continue;
+                }
                 let messages: Fetches = match imap.fetch(last_message_id.to_string(), "RFC822") {
                     Ok(messages) => messages,
                     Err(e) => {
@@ -163,6 +171,8 @@ impl MailHandler {
                         continue;
                     }
                 };
+
+                println!("New mail found...forwarding");
                 MailHandler::parse_forward_mail(send_mails.clone(), messages);
             }
 
@@ -173,27 +183,66 @@ impl MailHandler {
 
 
     fn parse_forward_mail(send_mails: Sender<MailData>, messages: Fetches) {
-        if let Some(message) = messages.iter().next() {
-            if let Some(body) = message.body() {
-                match parse_mail(body) {
-                    Ok(parsed_mail) => {
-                        let (text_body, html_body) = MailHandler::extract_bodies(&parsed_mail);
-                        let subject = parsed_mail.headers.get_first_value("Subject").unwrap_or_default();
-                        let sender = parsed_mail.headers.get_first_value("From").unwrap_or_default();
-
-                        let mail_data = MailData {
-                            subject,
-                            sender,
-                            text_body,
-                            html_body,
-                        };
-
-                        let _ = send_mails.send(mail_data);
-                    }
-                    Err(e) => println!("Could not parse mail: {:?}", e),
-                }
+        let message = match messages.iter().next() {
+            Some(message) => message,
+            None => {
+                println!("Could not get mail");
+                return;
             }
-        }
+        };
+
+        let body = match message.body() {
+            Some(body) => body,
+            None => {
+                println!("Could not get mail body");
+                return;
+            }
+        };
+
+        let parsed_mail = match parse_mail(body) {
+            Ok(mail) => mail,
+            Err(e) => {
+                println!("Could not parse mail: {:?}", e);
+                return;
+            }
+        };
+
+        // Get the subject and sender
+        let subject = match parsed_mail.headers.get_first_value("Subject") {
+            Some(subject) => subject,
+            _ => {
+                "No subject".to_string()
+            }
+        };
+
+        let from = match parsed_mail.headers.get_first_value("From") {
+            Some(from) => from,
+            _ => {
+                "No sender".to_string()
+            }
+        };
+
+        // from = "name <mail>"
+        let mail_regex = Regex::new(r"<(.*?)>").unwrap();
+        let sender = if let Some(captures) = mail_regex.captures(&*from) {
+            // Get the first captured group
+            captures.get(1).unwrap().as_str().to_string()
+        } else {
+            from.as_str().to_string()
+        };
+
+        println!("{}", sender);
+
+        let (text_body, html_body) = MailHandler::extract_bodies(&parsed_mail);
+
+        let mail_data = MailData {
+            subject,
+            sender,
+            text_body,
+            html_body,
+        };
+
+        let _ = send_mails.send(mail_data);
     }
 
     fn handle_mail(&self, mail_data: MailData) -> bool {
