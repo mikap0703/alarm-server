@@ -3,7 +3,7 @@ use crate::alarm::Alarm;
 use crate::apis::Api;
 use reqwest::Client;
 use urlencoding::encode;
-use log::{debug, error, info, warn};
+use log::info;
 
 pub struct Telegram {
     pub name: String,

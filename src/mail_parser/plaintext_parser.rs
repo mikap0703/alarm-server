@@ -1,7 +1,7 @@
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
 use crate::mail_parser::MailParser;
-use log::{debug, error, info, warn};
+use log::debug;
 
 pub struct PlaintextParser;
 

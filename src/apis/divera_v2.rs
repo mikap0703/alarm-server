@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use crate::alarm::Alarm;
 use crate::apis::Api;
-use log::{debug, error, info, warn};
+use log::info;
 
 pub struct DiveraV2 {
     pub name: String,

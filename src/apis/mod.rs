@@ -2,7 +2,6 @@ pub mod divera_v2;
 pub mod mock_api;
 pub mod telegram;
 use crate::alarm::Alarm;
-use std::future::Future;
 use async_trait::async_trait;
 
 #[async_trait]

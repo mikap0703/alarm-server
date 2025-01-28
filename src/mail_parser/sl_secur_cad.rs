@@ -2,7 +2,7 @@ use crate::alarm::{Alarm, Coordinates};
 use crate::config::alarm_sources::MailConfig;
 use crate::mail_parser::helpers::{get_table_key_order, parse_tables};
 use crate::mail_parser::MailParser;
-use log::{debug, error, info, warn};
+use log::{debug, info};
 
 pub struct SecurCadParser;
 

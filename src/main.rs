@@ -1,6 +1,6 @@
 use crate::alarm_handler::AlarmHandler;
 use fern::Dispatch;
-use log::{debug, error, info, warn};
+use log::error;
 use chrono::Local;
 use colored::Colorize;
 
