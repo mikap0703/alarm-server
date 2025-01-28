@@ -2,6 +2,7 @@ use crate::alarm::{Alarm, Coordinates};
 use crate::config::alarm_sources::MailConfig;
 use crate::mail_parser::helpers::{get_table_key_order, parse_tables};
 use crate::mail_parser::MailParser;
+use log::{debug, error, info, warn};
 
 pub struct SecurCadParser;
 
@@ -9,10 +10,9 @@ impl MailParser for SecurCadParser {
     fn parse(&self, text_body: &str, html_body: &str, alarm: &mut Alarm, config: MailConfig) -> Result<String, String> {
         let body = text_body.to_owned() + html_body;
 
-        println!("Decoded body: {}", body);
         let table = parse_tables(&*body);
         for (key, value) in table.iter() {
-            println!("{}: {:?}", key, value);
+            debug!("{}: {:?}", key, value);
         }
 
         let stichwoerter = config.stichwoerter.clone();
@@ -222,7 +222,7 @@ impl MailParser for SecurCadParser {
             }
         }
 
-        println!("{:?}", alarm);
+        info!("{:?}", alarm);
 
         //
         Ok(format!("Parsed SecurCad: {}", text_body))

@@ -3,6 +3,7 @@ use crate::alarm::Alarm;
 use crate::apis::Api;
 use reqwest::Client;
 use urlencoding::encode;
+use log::{debug, error, info, warn};
 
 pub struct Telegram {
     pub name: String,
@@ -12,7 +13,7 @@ pub struct Telegram {
 #[async_trait]
 impl Api for Telegram {
     async fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String> {
-        println!("Telegram API: Trigger");
+        info!("Telegram API: Trigger");
         let receivers = alarm.receiver.get(self.name.as_str());
 
         if receivers.is_none() {
@@ -23,7 +24,7 @@ impl Api for Telegram {
         let client = Client::new();
 
         for receiver in receivers.members.clone() {
-            println!("Sending message to: {}", receiver);
+            info!("Sending message to: {}", receiver);
 
             let url = format!(
                 "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}",
@@ -40,7 +41,7 @@ impl Api for Telegram {
     }
 
     async fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Result<(), String> {
-        println!("Telegram API: Updating alarm with key: {}", self.bot_token);
+        info!("Telegram API: Updating alarm with key: {}", self.bot_token);
         Ok(())
     }
 }

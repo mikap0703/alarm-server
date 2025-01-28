@@ -3,6 +3,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use colored::Colorize;
 use flume::Sender;
 use imap::{Connection, Session};
 use imap::types::{Fetches, UnsolicitedResponse};
@@ -16,6 +17,8 @@ use crate::mail_parser::{MailParser};
 use crate::mail_parser::sl_secur_cad::SecurCadParser;
 use crate::mail_parser::mock_parser::MockParser;
 use crate::mail_parser::plaintext_parser::PlaintextParser;
+use log::{debug, error, info, warn};
+
 
 pub struct MailHandler {
     config: MailConfig,
@@ -65,6 +68,10 @@ impl MailHandler {
     pub fn start(&self) {
         let (send_mails, recv_mails) = flume::unbounded();
 
+        let inbox_name = self.config.name.purple();
+
+        info!("{} MailHandler wird gestartet", inbox_name);
+
         // Start a thread for the idle loop
         if self.config.idle {
             let send_mails = send_mails.clone();
@@ -78,13 +85,15 @@ impl MailHandler {
 
             imap.select("INBOX").expect("Could not select mailbox");
 
+            info!("{} Idle loop wird gestartet", inbox_name);
+
             // imap.debug = self.debug;
             imap.debug = true;
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
                 MailHandler::idle_loop(&mut imap, send_mails);
             });
-            println!("Idle loop started");
+            info!("Idle loop started");
         }
 
         // Start a thread for the mail checking loop
@@ -99,6 +108,8 @@ impl MailHandler {
                 .expect("Could not login to imap server");
 
             imap.select("INBOX").expect("Could not select mailbox");
+
+            info!("{} Polling loop wird gestartet", inbox_name);
 
             let interval = Duration::from_secs(self.config.polling_interval);
             // imap.debug = self.debug;
@@ -116,7 +127,7 @@ impl MailHandler {
                 Ok(mail) => {
                     let hash = mail.calculate_hash();
                     if seen_mails.contains(&hash) {
-                        println!("Mail already seen");
+                        info!("Mail already seen - skipping");
                         continue;
                     } else {
                         seen_mails.push_back(hash);
@@ -126,13 +137,13 @@ impl MailHandler {
                     }
 
                     if self.handle_mail(mail) {
-                        println!("Mail was handled successfully");
+                        info!("Mail was handled successfully");
                     } else {
-                        println!("Mail was not handled or an error occurred");
+                        error!("Mail was not handled or an error occurred");
                     }
                 },
                 Err(e) => {
-                    println!("Could not receive mail: {:?}", e);
+                    error!("Could not receive mail: {:?}", e);
                 }
             }
         }
@@ -140,7 +151,7 @@ impl MailHandler {
 
     fn idle_loop(imap: &mut Session<Connection>, send_mails: Sender<MailData>) {
         'idle_loop: loop {
-            println!("Warten auf neue Mails...");
+            info!("Warten auf neue Mails...");
             let mut new_mail_id = None;
             let idle_result = imap.idle().timeout(Duration::new(120, 0)).keepalive(true).wait_while(|response| match response {
                 UnsolicitedResponse::Exists(mail_id) => {
@@ -148,7 +159,7 @@ impl MailHandler {
                     false
                 }
                 _ => {
-                    println!("No new mail received");
+                    debug!("No new mail received");
                     true
                 },
             });
@@ -164,54 +175,56 @@ impl MailHandler {
                     let messages = match imap.fetch(new_mail_id.to_string(), "RFC822") {
                         Ok(messages) => messages,
                         Err(e) => {
-                            println!("Could not fetch mail: {:?}", e);
+                            error!("Could not fetch mail: {:?}", e);
                             continue 'idle_loop;
                         }
                     };
                     MailHandler::parse_forward_mail(send_mails.clone(), messages);
                 }
-                Err(e) => println!("IDLE finished with error {:?}", e),
+                Err(e) => error!("IDLE finished with error {:?}", e),
             }
         }
+
+        error!("IDLE loop exited unexpectedly");
     }
 
     fn polling_loop(imap: &mut Session<Connection>, send_mails: Sender<MailData>, interval: Duration) {
         let last_seen_message_id = 0;
         loop {
-            println!("Periodically checking for new mail...");
+            debug!("Periodically checking for new mail...");
 
             // Search for unseen messages
             let message_ids = match imap.search("UNSEEN") {
                 Ok(ids) => ids,
                 Err(e) => {
-                    println!("Could not search for new mail: {:?}", e);
+                    error!("Could not search for new mail: {:?}", e);
                     continue;
                 }
             };
 
-            println!("Found {} unseen messages", message_ids.len());
-
             // Proceed only if there are any unseen messages
             if let Some(&last_message_id) = message_ids.iter().max() {
                 if last_message_id == last_seen_message_id {
-                    println!("No new mail found");
+                    warn!("No new mail found");
                     continue;
                 }
                 let messages: Fetches = match imap.fetch(last_message_id.to_string(), "RFC822") {
                     Ok(messages) => messages,
                     Err(e) => {
-                        println!("Could not fetch mail: {:?}", e);
+                        error!("Could not fetch mail: {:?}", e);
                         continue;
                     }
                 };
 
-                println!("New mail found...forwarding");
+                info!("New mail found...forwarding");
                 MailHandler::parse_forward_mail(send_mails.clone(), messages);
             }
 
             // Sleep for selected interval
             thread::sleep(interval);
         }
+
+        error!("Polling loop exited unexpectedly");
     }
 
 
@@ -219,7 +232,7 @@ impl MailHandler {
         let message = match messages.iter().next() {
             Some(message) => message,
             None => {
-                println!("Could not get mail");
+                error!("Could not get mail");
                 return;
             }
         };
@@ -227,7 +240,7 @@ impl MailHandler {
         let body = match message.body() {
             Some(body) => body,
             None => {
-                println!("Could not get mail body");
+                error!("Could not get mail body");
                 return;
             }
         };
@@ -235,7 +248,7 @@ impl MailHandler {
         let parsed_mail = match parse_mail(body) {
             Ok(mail) => mail,
             Err(e) => {
-                println!("Could not parse mail: {:?}", e);
+                error!("Could not parse mail: {:?}", e);
                 return;
             }
         };
@@ -264,8 +277,6 @@ impl MailHandler {
             from.as_str().to_string()
         };
 
-        println!("{}", sender);
-
         let (text_body, html_body) = MailHandler::extract_bodies(&parsed_mail);
 
         let mail_data = MailData {
@@ -279,18 +290,18 @@ impl MailHandler {
     }
 
     fn handle_mail(&self, mail_data: MailData) -> bool {
-        println!("Handling mail: {}: <{}>", mail_data.subject, mail_data.sender);
+        info!("Handling mail: {}: <{}>", mail_data.subject, mail_data.sender);
 
         // Validate mail
         if (self.config.alarm_subject != "*") && (mail_data.subject != self.config.alarm_subject) {
-            println!(
+            warn!(
                 "Subject mismatch: '{}' != '{}'",
                 mail_data.subject, self.config.alarm_subject
             );
             return false;
         }
         if (self.config.alarm_sender != "*") && (mail_data.sender != self.config.alarm_sender) {
-            println!(
+            warn!(
                 "Sender mismatch: '{}' != '{}'",
                 mail_data.sender, self.config.alarm_sender
             );
@@ -306,7 +317,7 @@ impl MailHandler {
                 true
             }
             Err(e) => {
-                println!("Could not parse mail: {}", e);
+                error!("Could not parse mail: {}", e);
                 false
             }
         }

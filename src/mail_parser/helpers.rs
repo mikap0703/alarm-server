@@ -23,7 +23,6 @@ pub fn parse_tables(body: &str) -> HashMap<String, Vec<String>> {
             // Process the first cell as a key (decoded with quoted-printable)
             if let Some(first_cell) = cells.next() {
                 let key = first_cell.text().collect::<String>().trim().to_string();
-                println!("{}", key);
                 if !key.is_empty() {
                     let decoded_key = decode(&key, Strict).expect("Failed to decode key");
                     let key_str = String::from_utf8(decoded_key).expect("Invalid UTF-8 in key");
@@ -39,7 +38,6 @@ pub fn parse_tables(body: &str) -> HashMap<String, Vec<String>> {
                 ).trim().to_string();
                 let decoded_cell = decode(&cell_text, Strict).expect("Failed to decode cell");
                 let cell_str = String::from_utf8(decoded_cell).expect("Invalid UTF-8 in cell");
-                println!("{}", cell_str);
                 row_data.push(cell_str);
             }
 

@@ -8,6 +8,7 @@ use crate::apis::mock_api::MockApi;
 use crate::apis::telegram::Telegram;
 use crate::config::alarm_templates::AlarmTemplates;
 use crate::config::general::{ApiConfig, ApiType};
+use log::{debug, error, info, warn};
 
 pub struct AlarmHandler {
     // channel to send and receive alarms
@@ -52,13 +53,13 @@ impl AlarmHandler {
             loop {
                 match recv_alarms.recv() {
                     Ok(mut alarm) => {
-                        println!("AlarmHandler received alarm: {}", alarm.title);
+                        info!("AlarmHandler received alarm: {}", alarm.title);
 
                         // apply default template
                         match alarm_templates.templates.get("default") {
                             Some(template) => {
                                 for (api_name, receiver) in template.apis.clone() {
-                                    println!("Applying default template for {}", api_name);
+                                    debug!("Applying default template for {}", api_name);
                                     alarm.apply_template(api_name.clone(), receiver);
                                 }
                             },
@@ -73,12 +74,12 @@ impl AlarmHandler {
                             match alarm_templates.templates.get(&template_name) {
                                 Some(template) => {
                                     for (api_name, receiver) in template.apis.clone() {
-                                        println!("Applying template {} for {}", template_name, api_name);
+                                        debug!("Applying template {} for {}", template_name, api_name);
                                         alarm.apply_template(api_name.clone(), receiver);
                                     }
                                 },
                                 None => {
-                                    println!("Template {} not found", template_name);
+                                    warn!("Template {} not found", template_name);
                                     break;
                                 }
                             };
@@ -90,7 +91,7 @@ impl AlarmHandler {
                             let api = match apis.get(&api) {
                                 Some(api) => api,
                                 None => {
-                                    eprintln!("API {} not found", api);
+                                    error!("API {} not found", api);
                                     continue;
                                 }
                             };
@@ -99,7 +100,7 @@ impl AlarmHandler {
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error receiving alarm: {}", e);
+                        error!("Error receiving alarm: {}", e);
                         break;
                     }
                 }
