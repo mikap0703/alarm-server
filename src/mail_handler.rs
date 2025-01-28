@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -7,6 +9,7 @@ use imap::types::{Fetches, UnsolicitedResponse};
 use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
 use regex::Regex;
 use tokio::sync::Mutex;
+use twox_hash::XxHash64;
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
 use crate::mail_parser::{MailParser};
@@ -28,6 +31,23 @@ struct MailData {
     sender: String,
     text_body: String,
     html_body: String,
+}
+
+impl MailData {
+    /// Generate a hash of all the fields combined.
+    fn calculate_hash(&self) -> u64 {
+        let mut hasher = XxHash64::default();
+        self.subject.hash(&mut hasher);
+        self.sender.hash(&mut hasher);
+        self.text_body.hash(&mut hasher);
+        self.html_body.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Compare two `MailData` instances using their hash values.
+    fn is_equal(&self, other: &Self) -> bool {
+        self.calculate_hash() == other.calculate_hash()
+    }
 }
 
 impl MailHandler {
@@ -80,22 +100,35 @@ impl MailHandler {
 
             imap.select("INBOX").expect("Could not select mailbox");
 
+            let interval = Duration::from_secs(self.config.polling_interval);
             // imap.debug = self.debug;
             imap.debug = false;
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
-                MailHandler::check_for_new_mail(&mut imap, send_mails);
+                MailHandler::polling_loop(&mut imap, send_mails, interval);
             });
         }
 
         // Start a thread for the mail sending loop
+        let mut seen_mails = VecDeque::with_capacity(3);
         loop {
             match recv_mails.recv() {
                 Ok(mail) => {
-                    if self.handle_mail(mail) {
-                        println!("Mail was handled");
+                    let hash = mail.calculate_hash();
+                    if seen_mails.contains(&hash) {
+                        println!("Mail already seen");
+                        continue;
                     } else {
-                        println!("Mail was not handled");
+                        seen_mails.push_back(hash);
+                        if seen_mails.len() > 3 {
+                            seen_mails.pop_front();
+                        }
+                    }
+
+                    if self.handle_mail(mail) {
+                        println!("Mail was handled successfully");
+                    } else {
+                        println!("Mail was not handled or an error occurred");
                     }
                 },
                 Err(e) => {
@@ -142,7 +175,7 @@ impl MailHandler {
         }
     }
 
-    fn check_for_new_mail(imap: &mut Session<Connection>, send_mails: Sender<MailData>) {
+    fn polling_loop(imap: &mut Session<Connection>, send_mails: Sender<MailData>, interval: Duration) {
         let last_seen_message_id = 0;
         loop {
             println!("Periodically checking for new mail...");
@@ -176,8 +209,8 @@ impl MailHandler {
                 MailHandler::parse_forward_mail(send_mails.clone(), messages);
             }
 
-            // Sleep for 30 seconds before the next check
-            thread::sleep(Duration::from_secs(30));
+            // Sleep for selected interval
+            thread::sleep(interval);
         }
     }
 
@@ -254,14 +287,14 @@ impl MailHandler {
                 "Subject mismatch: '{}' != '{}'",
                 mail_data.subject, self.config.alarm_subject
             );
-            return true;
+            return false;
         }
         if (self.config.alarm_sender != "*") && (mail_data.sender != self.config.alarm_sender) {
             println!(
                 "Sender mismatch: '{}' != '{}'",
                 mail_data.sender, self.config.alarm_sender
             );
-            return true;
+            return false;
         }
 
         let mut alarm = Alarm::new();
@@ -270,11 +303,11 @@ impl MailHandler {
         match self.mailparser.parse(&mail_data.text_body, &mail_data.html_body, &mut alarm, self.config.clone()) {
             Ok(_) => {
                 self.send_alarms.send(alarm).unwrap();
-                false
+                true
             }
             Err(e) => {
                 println!("Could not parse mail: {}", e);
-                true
+                false
             }
         }
     }

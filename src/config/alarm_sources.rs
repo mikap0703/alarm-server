@@ -23,6 +23,7 @@ pub struct MailConfig {
     pub stichwoerter: HashMap<String, String>,
     pub ignore_units: Vec<String>,
     pub polling: bool,
+    pub polling_interval: u64,
     pub idle: bool,
 }
 
