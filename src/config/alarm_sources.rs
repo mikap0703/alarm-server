@@ -4,7 +4,7 @@ use serde_derive::Deserialize;
 #[derive(Deserialize)]
 pub struct AlarmSources {
     pub mail_sources: Vec<MailConfig>,
-    serial_sources: Vec<SerialConfig>,
+    pub serial_sources: Vec<SerialConfig>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -28,11 +28,11 @@ pub struct MailConfig {
 }
 
 #[derive(Deserialize)]
-struct SerialConfig {
+pub struct SerialConfig {
     pub name: String,
-    port: String,
-    delimiter: String,
-    baudrate: u32,
-    alarm_list: Vec<String>,
-    rics: HashMap<String, String>,
+    pub port: String,
+    pub delimiter: String,
+    pub baudrate: u32,
+    pub alarm_list: Vec<String>,
+    pub rics: HashMap<String, String>,
 }

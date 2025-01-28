@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use colored::Colorize;
@@ -9,7 +8,6 @@ use imap::{Connection, Session};
 use imap::types::{Fetches, UnsolicitedResponse};
 use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
 use regex::Regex;
-use tokio::sync::Mutex;
 use twox_hash::XxHash64;
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
@@ -25,7 +23,6 @@ pub struct MailHandler {
     send_alarms: Sender<Alarm>,
     debug: bool,
     mailparser: Box<dyn MailParser>,
-    seen_mails: Arc<Mutex<Vec<u32>>>
 }
 
 #[derive(Debug, Clone)]
@@ -46,11 +43,6 @@ impl MailData {
         self.html_body.hash(&mut hasher);
         hasher.finish()
     }
-
-    /// Compare two `MailData` instances using their hash values.
-    fn is_equal(&self, other: &Self) -> bool {
-        self.calculate_hash() == other.calculate_hash()
-    }
 }
 
 impl MailHandler {
@@ -60,9 +52,8 @@ impl MailHandler {
             "Plaintext" => Box::new(PlaintextParser),
             _ => Box::new(MockParser),
         };
-        let seen_mails = Arc::new(Mutex::new(Vec::new()));
 
-        Self { config, send_alarms, debug, mailparser, seen_mails }
+        Self { config, send_alarms, debug, mailparser }
     }
 
     pub fn start(&self) {
@@ -87,8 +78,8 @@ impl MailHandler {
 
             info!("{} Idle loop wird gestartet", inbox_name);
 
-            // imap.debug = self.debug;
-            imap.debug = true;
+            imap.debug = self.debug;
+
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
                 MailHandler::idle_loop(&mut imap, send_mails);
@@ -112,8 +103,9 @@ impl MailHandler {
             info!("{} Polling loop wird gestartet", inbox_name);
 
             let interval = Duration::from_secs(self.config.polling_interval);
-            // imap.debug = self.debug;
-            imap.debug = false;
+
+            imap.debug = self.debug;
+
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
                 MailHandler::polling_loop(&mut imap, send_mails, interval);
@@ -184,8 +176,6 @@ impl MailHandler {
                 Err(e) => error!("IDLE finished with error {:?}", e),
             }
         }
-
-        error!("IDLE loop exited unexpectedly");
     }
 
     fn polling_loop(imap: &mut Session<Connection>, send_mails: Sender<MailData>, interval: Duration) {
@@ -223,8 +213,6 @@ impl MailHandler {
             // Sleep for selected interval
             thread::sleep(interval);
         }
-
-        error!("Polling loop exited unexpectedly");
     }
 
 
