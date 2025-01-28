@@ -1,6 +1,8 @@
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 use flume::Sender;
+use imap::{Connection, Session};
 use imap::types::{Fetch, Fetches, UnsolicitedResponse};
 use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
 use regex::Regex;
@@ -20,8 +22,12 @@ pub struct MailHandler {
     seen_mails: Arc<Mutex<Vec<u32>>>
 }
 
+#[derive(Debug, Clone)]
 struct MailData {
     subject: String,
+    sender: String,
+    text_body: String,
+    html_body: String,
 }
 
 impl MailHandler {
@@ -37,23 +43,70 @@ impl MailHandler {
     }
 
     pub fn start(&self) {
-        let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
-            .connect()
-            .expect("Could not connect to imap server");
+        let (send_mails, recv_mails) = flume::unbounded();
 
-        let mut imap = client
-            .login(self.config.user.as_str(), self.config.password.as_str())
-            .expect("Could not login to imap server");
+        // Start a thread for the idle loop
+        {
+            let send_mails = send_mails.clone();
+            let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
+                .connect()
+                .expect("Could not connect to imap server");
 
-        imap.select("INBOX").expect("Could not select mailbox");
+            let mut imap = client
+                .login(self.config.user.as_str(), self.config.password.as_str())
+                .expect("Could not login to imap server");
 
-        // imap.debug = self.debug;
-        imap.debug = true;
+            imap.select("INBOX").expect("Could not select mailbox");
 
+            // imap.debug = self.debug;
+            imap.debug = true;
+            thread::spawn(move || {
+                // Start the idle loop and mail checking loop
+                MailHandler::idle_loop(&mut imap, send_mails);
+            });
+        }
+
+        // Start a thread for the mail checking loop
+        {
+            let send_mails = send_mails.clone();
+            let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
+                .connect()
+                .expect("Could not connect to imap server");
+
+            let mut imap = client
+                .login(self.config.user.as_str(), self.config.password.as_str())
+                .expect("Could not login to imap server");
+
+            imap.select("INBOX").expect("Could not select mailbox");
+
+            // imap.debug = self.debug;
+            imap.debug = true;
+            thread::spawn(move || {
+                // Start the idle loop and mail checking loop
+                MailHandler::check_for_new_mail(&mut imap, send_mails);
+            });
+        }
+
+        // Start a thread for the mail sending loop
+        loop {
+            match recv_mails.recv() {
+                Ok(mail) => {
+                    if self.handle_mail(mail) {
+                        println!("Mail was handled");
+                    } else {
+                        println!("Mail was not handled");
+                    }
+                },
+                Err(e) => {
+                    println!("Could not receive mail: {:?}", e);
+                }
+            }
+        }
+    }
+
+    fn idle_loop(imap: &mut Session<Connection>, send_mails: Sender<MailData>) {
         'idle_loop: loop {
-            // todo: maybe mails are ignored (multiple mails, same time)
             println!("Warten auf neue Mails...");
-            println!("{}", self.config.user);
             let mut new_mail_id = None;
             let idle_result = imap.idle().timeout(Duration::new(120, 0)).keepalive(true).wait_while(|response| match response {
                 UnsolicitedResponse::Exists(mail_id) => {
@@ -67,121 +120,111 @@ impl MailHandler {
             });
 
             let new_mail_id = match new_mail_id {
-                Some(id) => {
-                    id
-                },
-                None => {
-                    continue 'idle_loop;
-                }
+                Some(id) => id,
+                None => continue 'idle_loop,
             };
 
             match idle_result {
                 Ok(_) => {
-                    // Get mail
-                    let messages: Fetches = match imap.fetch(new_mail_id.to_string(), "RFC822") {
+                    // Fetch the mail
+                    let messages = match imap.fetch(new_mail_id.to_string(), "RFC822") {
                         Ok(messages) => messages,
                         Err(e) => {
                             println!("Could not fetch mail: {:?}", e);
                             continue 'idle_loop;
                         }
                     };
-                    let message: &Fetch = if let Some(m) = messages.iter().next() {
-                        m
-                    } else {
-                        continue 'idle_loop;
-                    };
-
-
-                    if self.handle_mail(message) { continue 'idle_loop; }
+                    MailHandler::parse_forward_mail(send_mails.clone(), messages);
                 }
                 Err(e) => println!("IDLE finished with error {:?}", e),
             }
         }
     }
 
-    fn handle_mail(&self, message: &Fetch) -> bool {
-        let body = match message.body() {
-            Some(body) => body,
-            None => {
-                println!("Could not get mail body");
-                return true;
+    async fn check_for_new_mail(imap: &mut Session<Connection>, send_mails: Sender<MailData>) {
+        loop {
+            println!("Checking for new mail...");
+            let message_ids = match imap.search("UNSEEN") {
+                Ok(ids) => ids,
+                Err(e) => {
+                    println!("Could not search for new mail: {:?}", e);
+                    continue;
+                }
+            };
+
+            for message_id in message_ids.iter() {
+                let messages: Fetches = match imap.fetch(message_id.to_string(), "RFC822") {
+                    Ok(messages) => messages,
+                    Err(e) => {
+                        println!("Could not fetch mail: {:?}", e);
+                        continue;
+                    }
+                };
+                MailHandler::parse_forward_mail(send_mails.clone(), messages);
             }
-        };
 
-        let parsed_mail = match parse_mail(body) {
-            Ok(mail) => mail,
-            Err(e) => {
-                println!("Could not parse mail: {:?}", e);
-                return true;
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        }
+    }
+
+    fn parse_forward_mail(send_mails: Sender<MailData>, messages: Fetches) {
+        if let Some(message) = messages.iter().next() {
+            if let Some(body) = message.body() {
+                match parse_mail(body) {
+                    Ok(parsed_mail) => {
+                        let (text_body, html_body) = MailHandler::extract_bodies(&parsed_mail);
+                        let subject = parsed_mail.headers.get_first_value("Subject").unwrap_or_default();
+                        let sender = parsed_mail.headers.get_first_value("From").unwrap_or_default();
+
+                        let mail_data = MailData {
+                            subject,
+                            sender,
+                            text_body,
+                            html_body,
+                        };
+
+                        let _ = send_mails.send(mail_data);
+                    }
+                    Err(e) => println!("Could not parse mail: {:?}", e),
+                }
             }
-        };
+        }
+    }
 
-        // Get the subject and sender
-        let subject = match parsed_mail.headers.get_first_value("Subject") {
-            Some(subject) => subject,
-            _ => {
-                println!("Mail did not have a subject");
-                return true;
-            }
-        };
+    fn handle_mail(&self, mail_data: MailData) -> bool {
+        println!("Handling mail: {}: <{}>", mail_data.subject, mail_data.sender);
 
-        // let subject = subject.trim();
-
-        let from = match parsed_mail.headers.get_first_value("From") {
-            Some(from) => from,
-            _ => {
-                println!("Mail did not have a sender");
-                return true;
-            }
-        };
-
-        // from = "name <mail>"
-
-        let mail_regex = Regex::new(r"<(.*?)>").unwrap();
-        let sender = if let Some(captures) = mail_regex.captures(&*from) {
-            // Get the first captured group
-            captures.get(1).unwrap().as_str()
-        } else {
-            println!("No email address found.");
-            "*"
-        };
-
-        let (text_body, html_body) = Self::extract_bodies(&parsed_mail);
-
-        // validate the mail
-        // check the mails subject
-        let config_subject = self.config.alarm_subject.to_string();
-
-        println!("{}", config_subject == subject);
-
-        if (self.config.alarm_subject != "*") && (subject != config_subject) {
-            println!("'{}' - '{}'", subject, self.config.alarm_subject);
-            println!("Der Betreff ({}) stimmt nicht mit dem Betreff der Config überein...Mail wird ignoriert", subject);
+        // Validate mail
+        if (self.config.alarm_subject != "*") && (mail_data.subject != self.config.alarm_subject) {
+            println!(
+                "Subject mismatch: '{}' != '{}'",
+                mail_data.subject, self.config.alarm_subject
+            );
             return true;
         }
-
-
-        // check the mails sender
-        if (self.config.alarm_sender != "*") && (sender != self.config.alarm_sender) {
-            println!("Der Absender ({}) stimmt nicht mit dem Absender der Config überein...Mail wird ignoriert", from);
+        if (self.config.alarm_sender != "*") && (mail_data.sender != self.config.alarm_sender) {
+            println!(
+                "Sender mismatch: '{}' != '{}'",
+                mail_data.sender, self.config.alarm_sender
+            );
             return true;
         }
-
-        // Parse the mail
-        println!("{}: <{}> - {}", self.config.name, sender, subject);
 
         let mut alarm = Alarm::new();
-
         alarm.alarm_source(self.config.name.clone());
 
-        match self.mailparser.parse(&text_body, &html_body, &mut alarm, self.config.clone()) {
-            Ok(_) => {},
-            Err(e) => println!("Could not parse mail: {}", e),
-        };
-
-        self.send_alarms.send(alarm).unwrap();
-        false
+        match self.mailparser.parse(&mail_data.text_body, &mail_data.html_body, &mut alarm, self.config.clone()) {
+            Ok(_) => {
+                self.send_alarms.send(alarm).unwrap();
+                false
+            }
+            Err(e) => {
+                println!("Could not parse mail: {}", e);
+                true
+            }
+        }
     }
+
 
     fn extract_bodies(parsed_mail: &ParsedMail) -> (String, String) {
         let mut text_body = String::new();
