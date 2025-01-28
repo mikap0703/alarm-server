@@ -22,6 +22,8 @@ pub struct MailConfig {
     pub mail_schema: String,
     pub stichwoerter: HashMap<String, String>,
     pub ignore_units: Vec<String>,
+    pub polling: bool,
+    pub idle: bool,
 }
 
 #[derive(Deserialize)]

@@ -3,9 +3,8 @@ use std::thread;
 use std::time::Duration;
 use flume::Sender;
 use imap::{Connection, Session};
-use imap::types::{Fetch, Fetches, UnsolicitedResponse};
+use imap::types::{Fetches, UnsolicitedResponse};
 use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
-use regex::Regex;
 use tokio::sync::Mutex;
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
@@ -46,7 +45,7 @@ impl MailHandler {
         let (send_mails, recv_mails) = flume::unbounded();
 
         // Start a thread for the idle loop
-        {
+        if self.config.idle {
             let send_mails = send_mails.clone();
             let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
                 .connect()
@@ -64,10 +63,11 @@ impl MailHandler {
                 // Start the idle loop and mail checking loop
                 MailHandler::idle_loop(&mut imap, send_mails);
             });
+            println!("Idle loop started");
         }
 
         // Start a thread for the mail checking loop
-        {
+        if self.config.polling {
             let send_mails = send_mails.clone();
             let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
                 .connect()
@@ -80,7 +80,7 @@ impl MailHandler {
             imap.select("INBOX").expect("Could not select mailbox");
 
             // imap.debug = self.debug;
-            imap.debug = true;
+            imap.debug = false;
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
                 MailHandler::check_for_new_mail(&mut imap, send_mails);
@@ -141,9 +141,11 @@ impl MailHandler {
         }
     }
 
-    async fn check_for_new_mail(imap: &mut Session<Connection>, send_mails: Sender<MailData>) {
+    fn check_for_new_mail(imap: &mut Session<Connection>, send_mails: Sender<MailData>) {
         loop {
-            println!("Checking for new mail...");
+            println!("Periodically checking for new mail...");
+
+            // Search for unseen messages
             let message_ids = match imap.search("UNSEEN") {
                 Ok(ids) => ids,
                 Err(e) => {
@@ -152,8 +154,9 @@ impl MailHandler {
                 }
             };
 
-            for message_id in message_ids.iter() {
-                let messages: Fetches = match imap.fetch(message_id.to_string(), "RFC822") {
+            // Proceed only if there are any unseen messages
+            if let Some(&last_message_id) = message_ids.iter().max() {
+                let messages: Fetches = match imap.fetch(last_message_id.to_string(), "RFC822") {
                     Ok(messages) => messages,
                     Err(e) => {
                         println!("Could not fetch mail: {:?}", e);
@@ -163,9 +166,11 @@ impl MailHandler {
                 MailHandler::parse_forward_mail(send_mails.clone(), messages);
             }
 
-            tokio::time::sleep(Duration::from_secs(30)).await;
+            // Sleep for 30 seconds before the next check
+            thread::sleep(Duration::from_secs(30));
         }
     }
+
 
     fn parse_forward_mail(send_mails: Sender<MailData>, messages: Fetches) {
         if let Some(message) = messages.iter().next() {
