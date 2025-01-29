@@ -26,9 +26,11 @@ impl Api for Telegram {
         for receiver in receivers.members.clone() {
             info!("Sending message to: {}", receiver);
 
+            let text = format!("*{}*: {}", alarm.title, alarm.text);
+
             let url = format!(
-                "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}",
-                self.bot_token, receiver, encode(&*alarm.text)
+                "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}&parse_mode=MarkdownV2",
+                self.bot_token, receiver, encode(&*text),
             );
 
             match client.get(&url).send().await {
