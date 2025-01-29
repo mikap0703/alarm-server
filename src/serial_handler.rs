@@ -1,8 +1,8 @@
 use flume::Sender;
 use std::time::Duration;
-use std::io::{BufReader, Read, Write};
+use std::io::Read;
 use std::io::BufRead;
-use std::{io, thread};
+use std::io;
 use crate::alarm::{Alarm, DmeData};
 use crate::config::alarm_sources::SerialConfig;
 use log::{debug, error, info, warn};
