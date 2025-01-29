@@ -1,6 +1,8 @@
 # Stage 1: Build dependencies and project
 FROM rust:latest AS builder
 
+RUN apt update && apt install -y libudev-dev pkg-config
+
 # Set the working directory for the build
 WORKDIR /alarm-server
 
