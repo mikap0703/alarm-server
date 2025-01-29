@@ -1,3 +1,4 @@
+use std::thread;
 use crate::alarm_handler::AlarmHandler;
 use fern::Dispatch;
 use log::error;
@@ -10,6 +11,7 @@ mod alarm;
 mod mail_handler;
 mod mail_parser;
 mod apis;
+mod serial_handler;
 
 fn setup_logger() -> Result<(), fern::InitError> {
     Dispatch::new()
@@ -39,6 +41,7 @@ fn setup_logger() -> Result<(), fern::InitError> {
         .apply()?;
     Ok(())
 }
+
 #[tokio::main]
 async fn main() {
     if let Err(e) = setup_logger() {
@@ -61,8 +64,27 @@ async fn main() {
 
     alarm_handler.start();
 
+    /*
     for mail_source_config in configs.alarm_sources.mail_sources {
-        let mail_handler = mail_handler::MailHandler::new(mail_source_config, send_alarms.clone(), true);
-        mail_handler.start();
+        let send_alarms = send_alarms.clone();
+        thread::spawn(move || {
+            let mail_handler = mail_handler::MailHandler::new(mail_source_config, send_alarms, true);
+            mail_handler.start();
+        });
+    }
+
+     */
+
+    for serial_source_config in configs.alarm_sources.serial_sources {
+        let send_alarms = send_alarms.clone();
+        thread::spawn(move || {
+            let serial_handler = serial_handler::SerialHandler::new(serial_source_config, send_alarms, true);
+            serial_handler.start();
+        });
+    }
+
+    loop {
+        // Keep the main thread alive
+        thread::park();
     }
 }

@@ -37,7 +37,9 @@ pub struct MailData {
 
 #[derive(Debug, Clone)]
 pub struct DmeData {
-    content: String,
+    pub(crate) date: String,
+    pub(crate) ric: String,
+    pub(crate) content: String,
 }
 
 #[derive(Debug, Clone)]
@@ -130,6 +132,8 @@ impl Alarm {
                 date: 0,
             },
             dme_data: DmeData {
+                date: "".to_string(),
+                ric: "".to_string(),
                 content: "".to_string(),
             },
         }
