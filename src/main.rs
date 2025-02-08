@@ -37,7 +37,7 @@ fn setup_logger() -> Result<(), fern::InitError> {
         // Log to the console
         .chain(std::io::stdout())
         // Log to a file (without colors)
-        .chain(fern::log_file("app.log")?)
+        .chain(fern::log_file("config/app.log")?)
         .apply()?;
     Ok(())
 }
@@ -64,7 +64,7 @@ async fn main() {
 
     alarm_handler.start();
 
-    /*
+    // starting handlers for mail sources
     for mail_source_config in configs.alarm_sources.mail_sources {
         let send_alarms = send_alarms.clone();
         thread::spawn(move || {
@@ -73,8 +73,7 @@ async fn main() {
         });
     }
 
-     */
-
+    // starting handlers for serial sources
     for serial_source_config in configs.alarm_sources.serial_sources {
         let send_alarms = send_alarms.clone();
         thread::spawn(move || {
