@@ -33,6 +33,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "colored",
+ "encoding_rs",
  "fern",
  "flume",
  "imap",

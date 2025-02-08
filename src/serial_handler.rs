@@ -3,6 +3,7 @@ use std::time::Duration;
 use std::io::Read;
 use std::io::BufRead;
 use std::io;
+use encoding_rs::ISO_8859_2;
 use crate::alarm::{Alarm, DmeData};
 use crate::config::alarm_sources::SerialConfig;
 use log::{debug, error, info, warn};
@@ -27,8 +28,6 @@ impl SerialHandler {
         let port_name = &self.config.port;
         let baud_rate = self.config.baudrate;
         let delimiter = self.config.delimiter.clone();
-        let send_alarms = self.send_alarms.clone();
-        let debug = self.debug;
 
         let mut port = match serialport::new(port_name, baud_rate)
             .timeout(Duration::from_millis(10))
@@ -42,16 +41,28 @@ impl SerialHandler {
 
         info!("Serial port opened: {}, Baudrate: {}", port_name, baud_rate);
 
-        let mut serial_buf: Vec<u8> = vec![0; 1024]; // Initialize buffer with a size
+        let mut temp_buffer: Vec<u8> = vec![0; 1024];
+        let mut buffer: Vec<u8> = Vec::new();
+        let end_sequence: &[u8] = delimiter.as_bytes();
 
         loop {
-            match port.read(serial_buf.as_mut_slice()) {
+            match port.read(temp_buffer.as_mut_slice()) {
                 Ok(bytes_read) => {
                     if bytes_read > 0 {
-                        debug!("Buffer: {:02X?}", &serial_buf[..bytes_read]);
-                        // Handle the data
-                        let data = String::from_utf8_lossy(&serial_buf[..bytes_read]).to_string();
-                        self.handle_dme_data(data);
+                        debug!("Buffer: {:02X?}", &temp_buffer[..bytes_read]);
+                        buffer.extend_from_slice(&temp_buffer[..bytes_read]);
+
+                        // Check if the buffer contains the delimiter
+                        if buffer.ends_with(end_sequence) {
+                            let (decoded_buffer, _, _) = ISO_8859_2.decode(&buffer);
+                            debug!("Received: {}", decoded_buffer);
+
+                            // Handle the data
+                            let (final_decoded, _, _) = ISO_8859_2.decode(&buffer);
+                            self.handle_dme_data(final_decoded.to_string());
+
+                            buffer.clear();
+                        }
                     }
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
