@@ -10,6 +10,7 @@ pub struct AlarmSources {
 #[derive(Deserialize, Clone)]
 pub struct MailConfig {
     pub name: String,
+    pub active: bool,
     pub user: String,
     pub password: String,
     pub host: String,
@@ -30,6 +31,7 @@ pub struct MailConfig {
 #[derive(Deserialize)]
 pub struct SerialConfig {
     pub name: String,
+    pub active: bool,
     pub port: String,
     pub delimiter: String,
     pub baudrate: u32,

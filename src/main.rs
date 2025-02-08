@@ -1,7 +1,7 @@
 use std::thread;
 use crate::alarm_handler::AlarmHandler;
 use fern::Dispatch;
-use log::error;
+use log::{error, info};
 use chrono::Local;
 use colored::Colorize;
 
@@ -66,6 +66,10 @@ async fn main() {
 
     // starting handlers for mail sources
     for mail_source_config in configs.alarm_sources.mail_sources {
+        if !mail_source_config.active {
+            info!("Mail source '{}' is deactivated - skipping...", mail_source_config.name);
+            continue;
+        }
         let send_alarms = send_alarms.clone();
         thread::spawn(move || {
             let mail_handler = mail_handler::MailHandler::new(mail_source_config, send_alarms, true);
@@ -75,6 +79,10 @@ async fn main() {
 
     // starting handlers for serial sources
     for serial_source_config in configs.alarm_sources.serial_sources {
+        if !serial_source_config.active {
+            info!("Serial source '{}' is deactivated - skipping...", serial_source_config.name);
+            continue;
+        }
         let send_alarms = send_alarms.clone();
         thread::spawn(move || {
             let serial_handler = serial_handler::SerialHandler::new(serial_source_config, send_alarms, true);
