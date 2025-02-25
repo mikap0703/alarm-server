@@ -91,13 +91,20 @@ impl SerialHandler {
             debug!("Line {}: {}", i, lines[i]);
         }
 
+        let ric = lines[1].to_string();
+        let text = lines[2].to_string();
+
         alarm.set_dme_data(DmeData {
             date: lines[0].to_string(),
-            ric: lines[1].to_string(),
-            content: lines[2].to_string(),
+            ric: ric.clone(),
+            content: text.clone(),
         });
 
-        let text = lines[2].to_string();
+        if let Some(alarm_template) = self.config.rics.get(&ric) {
+            alarm.template_names.push(alarm_template.clone());
+        } else {
+            alarm.set_title("Einsatz".to_string());
+        }
 
         alarm.set_text(text);
 

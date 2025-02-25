@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::time::{Instant};
 use crate::config::alarm_templates::AlarmTemplateReceiver;
 
@@ -52,6 +53,7 @@ pub struct Alarm {
     pub address: Address,
     pub units: Vec<String>,
     pub receiver: HashMap<String, AlarmReceiver>,
+    pub foreign_ids: HashMap<String, String>,
     pub template_names: Vec<String>,
     pub groups: Vec<String>,
     pub vehicles: Vec<String>,
@@ -118,6 +120,7 @@ impl Alarm {
             address: Address::new(),  // Use Address::new() here
             units: vec![],
             receiver: HashMap::new(),
+            foreign_ids: HashMap::new(),
             template_names: vec![],
             groups: vec![],
             vehicles: vec![],
