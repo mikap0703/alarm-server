@@ -27,7 +27,7 @@ impl SerialHandler {
     pub fn start(&self) {
         let port_name = &self.config.port;
         let baud_rate = self.config.baudrate;
-        let delimiter = self.config.delimiter.clone();
+        let delimiter = self.config.delimiter.clone().replace("\\r", "\r").replace("\\n", "\n").replace("\\0", "\0");
 
         let mut port = match serialport::new(port_name, baud_rate)
             .timeout(Duration::from_millis(10))
@@ -80,25 +80,31 @@ impl SerialHandler {
         let mut alarm = Alarm::new();
 
         // split the data after each line break
-        let lines: Vec<&str> = data.split("\n").collect();
+        let lines: Vec<&str> = data.trim().lines().collect();
 
         if lines.len() < 3 {
             warn!("Received data is too short");
             return;
         }
 
+        for i in 0..lines.len() {
+            debug!("Line {}: {}", i, lines[i]);
+        }
+
         alarm.set_dme_data(DmeData {
-            date: lines[lines.len() -3].to_string(),
-            ric: lines[lines.len() -2].to_string(),
-            content: lines[lines.len() -1].to_string(),
+            date: lines[0].to_string(),
+            ric: lines[1].to_string(),
+            content: lines[2].to_string(),
         });
 
-        let text = lines[lines.len() -1].to_string();
+        let text = lines[2].to_string();
 
         alarm.set_text(text);
 
+        print!("Alarm: {:?}", alarm);
+
         for stichwort in self.config.alarm_list.clone() {
-            if lines[lines.len() -1].contains(stichwort.as_str()) {
+            if lines[2].contains(stichwort.as_str()) {
                 alarm.title = stichwort.to_string();
             }
         }
