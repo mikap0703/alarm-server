@@ -3,12 +3,35 @@ use crate::alarm::Alarm;
 use crate::apis::Api;
 use reqwest::Client;
 use urlencoding::encode;
-use log::info;
+use log::{error, info};
 
 pub struct Telegram {
     pub name: String,
     pub bot_token: String,
 }
+
+fn escape_markdown_v2(text: &str) -> String {
+    text.replace('\\', "\\\\")
+        .replace('*', "\\*")
+        .replace('_', "\\_")
+        .replace('[', "\\[")
+        .replace(']', "\\]")
+        .replace('(', "\\(")
+        .replace(')', "\\)")
+        .replace('~', "\\~")
+        .replace('`', "\\`")
+        .replace('>', "\\>")
+        .replace('#', "\\#")
+        .replace('+', "\\+")
+        .replace('-', "\\-")
+        .replace('=', "\\=")
+        .replace('|', "\\|")
+        .replace('{', "\\{")
+        .replace('}', "\\}")
+        .replace('.', "\\.")
+        .replace('!', "\\!")
+}
+
 
 #[async_trait]
 impl Api for Telegram {
@@ -26,15 +49,24 @@ impl Api for Telegram {
         for receiver in receivers.members.clone() {
             info!("Sending message to: {}", receiver);
 
-            let text = format!("*{}*: {}", alarm.title, alarm.text);
+            let text = format!("*{}*\n{}", escape_markdown_v2(&alarm.title), escape_markdown_v2(&alarm.text));
 
             let url = format!(
                 "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}&parse_mode=MarkdownV2",
                 self.bot_token, receiver, encode(&*text),
             );
 
+            println!("{}", url);
+
             match client.get(&url).send().await {
-                Ok(_) => (),
+                Ok(res) => (
+                    if res.status().is_success() {
+                        info!("Message sent to: {}", receiver);
+                    } else {
+                        error!("Error sending message to {}: {}", receiver, res.status());
+                        println!("{:?}", res.text().await);
+                    }
+                ),
                 Err(err) => eprintln!("Error sending message: {}", err),
             }
         }
