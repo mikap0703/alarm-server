@@ -5,7 +5,7 @@ use crate::config::alarm_templates::AlarmTemplateReceiver;
 
 #[derive(Debug, Clone)]
 pub struct Address {
-    street: String,
+    pub street: String,
     city: String,
     object: String,
     object_id: String,
