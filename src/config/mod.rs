@@ -58,5 +58,5 @@ pub fn parse_configs() -> Result<Configs, Box<dyn Error>> {
 
     // todo: validate configs (check if the api names are in the templates etc.)
 
-    return Ok(Configs{alarm_sources, alarm_templates, general})
+    Ok(Configs{alarm_sources, alarm_templates, general})
 }

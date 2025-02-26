@@ -298,6 +298,7 @@ impl MailHandler {
 
         let mut alarm = Alarm::new();
         alarm.alarm_source(self.config.name.clone());
+        alarm.origin = self.config.name.clone();
 
         match self.mailparser.parse(&mail_data.text_body, &mail_data.html_body, &mut alarm, self.config.clone()) {
             Ok(_) => {

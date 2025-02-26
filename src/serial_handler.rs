@@ -79,6 +79,8 @@ impl SerialHandler {
 
         let mut alarm = Alarm::new();
 
+        alarm.origin = self.config.name.clone();
+
         // split the data after each line break
         let lines: Vec<&str> = data.trim().lines().collect();
 

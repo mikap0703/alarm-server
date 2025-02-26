@@ -1,5 +1,7 @@
+use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::sync::{Arc};
+use std::time::Duration;
 use tokio::sync::Mutex;
 use crate::alarm::{Alarm};
 use crate::apis::Api;
@@ -7,21 +9,30 @@ use crate::apis::divera_v2::DiveraV2;
 use crate::apis::mock_api::MockApi;
 use crate::apis::telegram::Telegram;
 use crate::config::alarm_templates::AlarmTemplates;
-use crate::config::general::{ApiConfig, ApiType};
+use crate::config::general::{ApiConfig, ApiType, GeneralConfig};
 use log::{debug, error, info, warn};
+use crate::config::Configs;
 
 pub struct AlarmHandler {
     // channel to send and receive alarms
     recv_alarms: flume::Receiver<Alarm>,
     apis: Arc<Mutex<HashMap<String, Box<dyn Api>>>>,
     alarm_templates: AlarmTemplates,
-    last_alarms: Vec<Alarm>,
+    last_alarms: Arc<Mutex<Vec<Alarm>>>, // Change to Arc<Mutex<>> for shared mutable access
+    config: GeneralConfig
+}
+
+#[derive(PartialEq, Debug)]
+enum AlarmType {
+    FirstAlarm,
+    UpdateAlarm,
+    DropAlarm
 }
 
 impl AlarmHandler {
-    pub fn new(recv_alarms: flume::Receiver<Alarm>, api_configs: Vec<ApiConfig>, alarm_templates: AlarmTemplates) -> Self {
+    pub fn new(recv_alarms: flume::Receiver<Alarm>, config: GeneralConfig, alarm_templates: AlarmTemplates) -> Self {
         let mut apis_map = HashMap::new();
-        for api_config in api_configs {
+        for api_config in config.clone().apis {
             let name = api_config.name.clone();
             let api_key = api_config.api_key.clone();
             let api: Box<dyn Api> = match api_config.api {
@@ -39,7 +50,8 @@ impl AlarmHandler {
             recv_alarms,
             apis,
             alarm_templates,
-            last_alarms: Vec::new(),
+            last_alarms: Arc::new(Mutex::new(Vec::new())),
+            config,
         }
     }
 
@@ -47,12 +59,15 @@ impl AlarmHandler {
         let recv_alarms = self.recv_alarms.clone();
         let apis = self.apis.clone();
         let alarm_templates = self.alarm_templates.clone();
+        let last_alarms = self.last_alarms.clone();
+        let config = self.config.clone();
 
         // Use tokio::spawn to create an async task
         tokio::spawn(async move {
             loop {
                 match recv_alarms.recv() {
                     Ok(mut alarm) => {
+                        println!("{:?}", alarm);
                         info!("AlarmHandler received alarm: {}", alarm.title);
 
                         // apply default template
@@ -64,7 +79,7 @@ impl AlarmHandler {
                                 }
                             },
                             None => {
-                                println!("Default template not found");
+                                error!("Default template not found");
                                 break;
                             }
                         };
@@ -80,25 +95,59 @@ impl AlarmHandler {
                                 },
                                 None => {
                                     warn!("Template {} not found", template_name);
-                                    break;
+                                    continue; // Changed break to continue to prevent exiting the loop
                                 }
                             };
                         }
 
-                        let apis = apis.lock().await;
+                        let alarm_type = {
+                            let last_alarms_lock = last_alarms.lock().await;
+                            if let Some(last_alarm) = last_alarms_lock.last() {
+                                compare_alarms(&alarm, last_alarm, &config)
+                            } else {
+                                AlarmType::FirstAlarm
+                            }
+                        };
 
-                        for (api, _receiver) in alarm.receiver.clone() {
-                            let api = match apis.get(&api) {
-                                Some(api) => api,
+                        match alarm_type {
+                            AlarmType::FirstAlarm => {
+                                info!("Alarmierung ist ein Erstalarm");
+                            },
+                            AlarmType::UpdateAlarm => {
+                                info!("Alarmierung ist ein Update");
+                            },
+                            AlarmType::DropAlarm => {
+                                info!("Alarmierung ist irrelevant");
+                                continue;
+                            }
+                        }
+
+                        let apis_lock = apis.lock().await;
+
+                        for (api_name, receiver) in alarm.receiver.clone() {
+                            match apis_lock.get(&api_name) {
+                                Some(api) => {
+                                    let result = match alarm_type {
+                                        AlarmType::FirstAlarm => api.trigger_alarm(&alarm).await,
+                                        AlarmType::UpdateAlarm => api.update_alarm(&alarm).await,
+                                        AlarmType::DropAlarm => continue, // Skip this API
+                                    };
+
+                                    if let Err(e) = result {
+                                        error!("Error triggering/updating alarm for API {}: {:?}", api_name, e);
+                                    }
+                                },
                                 None => {
-                                    error!("API {} not found", api);
+                                    error!("API {} not found", api_name);
                                     continue;
                                 }
                             };
-
-                            let _ = api.trigger_alarm(&alarm).await;
                         }
-                    }
+
+                        // Update last_alarms after processing
+                        let mut last_alarms_lock = last_alarms.lock().await;
+                        last_alarms_lock.push(alarm);
+                    },
                     Err(e) => {
                         error!("Error receiving alarm: {}", e);
                         break;
@@ -106,5 +155,39 @@ impl AlarmHandler {
                 }
             }
         });
+    }
+}
+
+// Move compare_alarms to a standalone function
+fn compare_alarms(new_alarm: &Alarm, old_alarm: &Alarm, config: &GeneralConfig) -> AlarmType {
+    let time_diff = new_alarm.time - old_alarm.time;
+    if time_diff < Duration::from_secs(config.timeout) {
+        // update but maybe irrelevant
+        let new_source = &new_alarm.origin;
+        let new_source_key = config.source_priority.iter().position(|n| n == new_source);
+
+        let old_source = &old_alarm.origin;
+        let old_source_key = config.source_priority.iter().position(|n| n == old_source);
+
+        println!("{:?}", config.source_priority);
+        println!("new: {:?} - old: {:?}", new_source, old_source);
+        println!("new: {:?} - old: {:?}", new_source_key, old_source_key);
+
+        if let Some(new_source_key) = new_source_key {
+            if let Some(old_source_key) = old_source_key {
+                if new_source_key < old_source_key {
+                    // new alarm is more important
+                    return AlarmType::UpdateAlarm;
+                } else if new_source_key > old_source_key {
+                    // old alarm is more important
+                    return AlarmType::DropAlarm;
+                }
+            }
+        }
+
+        AlarmType::UpdateAlarm
+    } else {
+        // last alarm was too long ago - new alarm
+        AlarmType::FirstAlarm
     }
 }

@@ -60,7 +60,7 @@ async fn main() {
     // channel to send and receive alarms
     let (send_alarms, recv_alarms) = flume::unbounded();
 
-    let alarm_handler = AlarmHandler::new(recv_alarms, configs.general.apis, configs.alarm_templates.clone());
+    let alarm_handler = AlarmHandler::new(recv_alarms, configs.general, configs.alarm_templates.clone());
 
     alarm_handler.start();
 
