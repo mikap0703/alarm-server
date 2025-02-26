@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use crate::alarm::Alarm;
+use crate::alarm::{Alarm, AlarmReceiver};
 use crate::apis::Api;
 use reqwest::Client;
 use urlencoding::encode;
@@ -37,12 +37,8 @@ fn escape_markdown_v2(text: &str) -> String {
 impl Api for Telegram {
     async fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String> {
         info!("Telegram API: Trigger");
-        let receivers = alarm.receiver.get(self.name.as_str());
 
-        if receivers.is_none() {
-            return Err(format!("No receivers found for Telegram API: {}", self.name));
-        }
-        let receivers = receivers.unwrap();
+        let receivers = alarm.get_receivers(self.name.as_str());
 
         let client = Client::new();
 

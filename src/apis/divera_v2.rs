@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use crate::alarm::Alarm;
+use flume::Receiver;
+use crate::alarm::{Alarm, AlarmReceiver};
 use crate::apis::Api;
 use log::info;
 use reqwest::Client;
@@ -16,6 +17,8 @@ impl Api for DiveraV2 {
         info!("Divera API: trigger alarm");
         info!("{:?}", alarm);
 
+        let receivers = alarm.get_receivers(self.name.as_str());
+
         let client = Client::new();
         let req_body = json!({
             "accesskey": self.api_key,
@@ -31,8 +34,8 @@ impl Api for DiveraV2 {
                 "notification_type": 3,
                 "notification_filter_access": true,
                 "send_push": true,
-                "group": alarm.groups,
-                "vehicle": alarm.vehicles,
+                "group": receivers.groups,
+                "vehicle": receivers.vehicles,
             },
             "instructions": {
                 "group": {

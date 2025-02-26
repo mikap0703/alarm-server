@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::time::{Instant};
+use serde_derive::Serialize;
 use crate::config::alarm_templates::AlarmTemplateReceiver;
 
 #[derive(Debug, Clone)]
@@ -20,7 +21,7 @@ pub struct Coordinates {
     pub lon: Option<f64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AlarmReceiver {
     pub groups: Vec<String>,
     pub vehicles: Vec<String>,
@@ -237,5 +238,13 @@ impl Alarm {
                 self.webhooks.extend(webhooks);
             }
         }
+    }
+
+    pub fn get_receivers(&self, api_name: &str) -> AlarmReceiver {
+        self.receiver.get(api_name).cloned().unwrap_or(AlarmReceiver {
+            groups: vec![],
+            vehicles: vec![],
+            members: vec![],
+        })
     }
 }
