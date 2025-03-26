@@ -26,7 +26,7 @@ impl MailParser for SecurCadParser {
         alarm.set_id(id);
 
         // Stichwort und Notfallgeschehen
-        let mut stichwort = match table.get("Stichwort:") {
+        let mut stichwort = match table.get("Einsatzstichwort:") {
             Some(stichwort) => stichwort[0].clone(),
             None => "".to_string()
         };
@@ -57,6 +57,8 @@ impl MailParser for SecurCadParser {
             } else if stichwort != "" {
                 alarm.set_title(stichwort);
             }
+        } else {
+            alarm.set_title(stichwort);
         }
 
         // Objekt und Sachverhalt
@@ -72,8 +74,9 @@ impl MailParser for SecurCadParser {
             None => "".to_string()
         };
 
-        if sachverhalt != "" {
-            if objekt != "" {
+        if sachverhalt.len() > 0 {
+            println!("objekt: {}", objekt);
+            if objekt.len() > 0 {
                 alarm.set_text(format!("{} - {}", sachverhalt, objekt));
             } else {
                 alarm.set_text(sachverhalt.as_str().to_string());
@@ -126,7 +129,7 @@ impl MailParser for SecurCadParser {
 
         // Koordinaten
         // UTM
-        let utm = match table.get("UTM:") {
+        let utm = match table.get("UTM - Koordinaten:") {
             Some(utm) => utm[0].clone(),
             None => "".to_string()
         };
@@ -141,7 +144,9 @@ impl MailParser for SecurCadParser {
             None => vec![]
         };
 
-        let lat_lon_reg = regex::Regex::new(r"/\d+,\d+/").unwrap();
+        println!("koords: {:?}", lat_lon);
+
+        let lat_lon_reg = regex::Regex::new(r"(\d+,\d+)").unwrap();
         // parsing latitude - geogr. Breite
         let lat = match lat_lon.get(1) {
             Some(lat_str) => match lat_lon_reg.captures(lat_str) {
@@ -197,6 +202,8 @@ impl MailParser for SecurCadParser {
         } else {
             0
         };
+
+        println!("{:?}", table);
 
         if unit_end_index > unit_start_index {
             // vec of unit keys

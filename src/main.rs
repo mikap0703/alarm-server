@@ -72,7 +72,7 @@ async fn main() {
         }
         let send_alarms = send_alarms.clone();
         thread::spawn(move || {
-            let mail_handler = mail_handler::MailHandler::new(mail_source_config, send_alarms, true);
+            let mail_handler = mail_handler::MailHandler::new(mail_source_config, send_alarms, false);
             mail_handler.start();
         });
     }

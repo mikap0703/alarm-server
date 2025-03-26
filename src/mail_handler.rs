@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::hash::{Hash, Hasher};
 use std::thread;
 use std::time::Duration;
+use chrono::{DateTime, Local};
 use colored::Colorize;
 use flume::Sender;
 use imap::{Connection, Session};
@@ -29,6 +30,7 @@ pub struct MailHandler {
 struct MailData {
     subject: String,
     sender: String,
+    date: DateTime<Local>,
     text_body: String,
     html_body: String,
 }
@@ -150,7 +152,8 @@ impl MailHandler {
                     new_mail_id = Some(mail_id);
                     false
                 }
-                _ => {
+                other => {
+                    print!("received {:?}", other);
                     debug!("No new mail received");
                     true
                 },
@@ -179,42 +182,57 @@ impl MailHandler {
     }
 
     fn polling_loop(imap: &mut Session<Connection>, send_mails: Sender<MailData>, interval: Duration) {
-        let last_seen_message_id = 0;
+        // Track the most recent message UID we've processed
+        let mut last_processed_uid = 0;
+
         loop {
             debug!("Periodically checking for new mail...");
 
-            // Search for unseen messages
-            let message_ids = match imap.search("UNSEEN") {
-                Ok(ids) => ids,
+            // First, fetch the UID of the last message using '*' notation
+            let uid_fetch = match imap.fetch("*", "(UID)") {
+                Ok(fetches) => fetches,
                 Err(e) => {
-                    error!("Could not search for new mail: {:?}", e);
+                    error!("Could not fetch last message UID: {:?}", e);
+                    thread::sleep(interval);
                     continue;
                 }
             };
 
-            // Proceed only if there are any unseen messages
-            if let Some(&last_message_id) = message_ids.iter().max() {
-                if last_message_id == last_seen_message_id {
-                    warn!("No new mail found");
+            // Extract the UID from the fetch result if available
+            let latest_uid = match uid_fetch.iter().next().and_then(|msg| msg.uid) {
+                Some(uid) => uid,
+                None => {
+                    debug!("No messages in mailbox");
+                    thread::sleep(interval);
                     continue;
                 }
-                let messages: Fetches = match imap.fetch(last_message_id.to_string(), "RFC822") {
+            };
+
+            // Check if this is a new message we haven't processed yet
+            if latest_uid > last_processed_uid {
+                // Fetch the newest message by using '*' notation
+                let messages: Fetches = match imap.fetch("*", "RFC822") {
                     Ok(messages) => messages,
                     Err(e) => {
                         error!("Could not fetch mail: {:?}", e);
+                        thread::sleep(interval);
                         continue;
                     }
                 };
 
-                info!("New mail found...forwarding");
+                info!("New mail found (UID: {})...forwarding", latest_uid);
                 MailHandler::parse_forward_mail(send_mails.clone(), messages);
+
+                // Update the last processed UID
+                last_processed_uid = latest_uid;
+            } else {
+                debug!("No new mail found");
             }
 
             // Sleep for selected interval
             thread::sleep(interval);
         }
     }
-
 
     fn parse_forward_mail(send_mails: Sender<MailData>, messages: Fetches) {
         let message = match messages.iter().next() {
@@ -265,18 +283,35 @@ impl MailHandler {
             from.as_str().to_string()
         };
 
+        // Parse the date from the mail headers
+        let date = match parsed_mail.headers.get_first_value("Date") {
+            Some(date_str) => {
+                match DateTime::parse_from_rfc2822(&date_str) {
+                    Ok(parsed_date) => parsed_date.with_timezone(&Local),
+                    Err(_) => {
+                        error!("Could not parse mail date: {}", date_str);
+                        Local::now() // Fallback to current time
+                    }
+                }
+            },
+            None => {
+                error!("No date found in mail headers");
+                Local::now() // Fallback to current time
+            }
+        };
+
         let (text_body, html_body) = MailHandler::extract_bodies(&parsed_mail);
 
         let mail_data = MailData {
             subject,
             sender,
+            date,
             text_body,
             html_body,
         };
 
         let _ = send_mails.send(mail_data);
     }
-
     fn handle_mail(&self, mail_data: MailData) -> bool {
         info!("Handling mail: {}: <{}>", mail_data.subject, mail_data.sender);
 
@@ -294,6 +329,16 @@ impl MailHandler {
                 mail_data.sender, self.config.alarm_sender
             );
             return false;
+        }
+
+        if (self.config.max_age > 0) {
+            let now = Local::now();
+            let mail_date = mail_data.date;
+            let age = now.signed_duration_since(mail_date).num_seconds() as u64;
+            if age > self.config.max_age {
+                warn!("Mail is too old: {}s > {}s", age, self.config.max_age);
+                return false;
+            }
         }
 
         let mut alarm = Alarm::new();
