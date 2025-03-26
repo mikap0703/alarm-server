@@ -182,13 +182,6 @@ impl MailParser for SecurCadParser {
 
         alarm.address.set_coords(Coordinates { lat, lon });
 
-        // Apple Maps Link
-        if let Some(lat) = lat {
-            if let Some(lon) = lon {
-                alarm.add_to_text(format!("\n \n https://maps.apple.com/?q={},{} \n \n", lat, lon));
-            }
-        }
-
         // Units
         let key_order = get_table_key_order(&*body);
         let unit_start_index = if let Some(index) = key_order.iter().position(|x| x == "Ressourcen") {

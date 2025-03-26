@@ -7,12 +7,12 @@ use crate::config::alarm_templates::AlarmTemplateReceiver;
 #[derive(Debug, Clone)]
 pub struct Address {
     pub street: String,
-    city: String,
-    object: String,
-    object_id: String,
-    info: String,
-    utm: String,
-    coords: Coordinates,
+    pub city: String,
+    pub object: String,
+    pub object_id: String,
+    pub info: String,
+    pub utm: String,
+    pub coords: Coordinates,
 }
 
 #[derive(Debug, Clone)]
@@ -215,22 +215,22 @@ impl Alarm {
     pub fn apply_template(&mut self, target: String, template_receiver: AlarmTemplateReceiver) {
         match template_receiver {
             AlarmTemplateReceiver::Api { members, groups, vehicles } => {
-                let receiver = self.receiver.entry(target).or_insert(AlarmReceiver {
+                let mut receiver = self.receiver.entry(target).or_insert(AlarmReceiver {
                     groups: vec![],
                     vehicles: vec![],
                     members: vec![],
                 });
 
                 if let Some(members) = members {
-                    receiver.members = members;
+                    receiver.members.extend(members);
                 }
 
                 if let Some(groups) = groups {
-                    receiver.groups = groups;
+                    receiver.groups.extend(groups);
                 }
 
                 if let Some(vehicles) = vehicles {
-                    receiver.vehicles = vehicles;
+                    receiver.vehicles.extend(vehicles);
                 }
             }
             AlarmTemplateReceiver::Webhooks( webhooks ) => {

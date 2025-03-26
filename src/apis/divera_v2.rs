@@ -19,6 +19,33 @@ impl Api for DiveraV2 {
 
         let receivers = alarm.get_receivers(self.name.as_str());
 
+        let mut text = alarm.text.clone();
+
+        if alarm.address.object != "" {
+            text.push_str(format!("\n{}", alarm.address.object).as_str());
+        }
+
+        if alarm.address.info != "" {
+            text.push_str(format!(" ({})", alarm.address.info).as_str());
+        }
+
+        if alarm.address.object_id != "" {
+            text.push_str(format!("Objekt-ID: {}", alarm.address.object_id).as_str());
+        }
+
+        // Add UTM if available
+        if alarm.address.utm != "" {
+            text.push_str(format!("\n\nUTM: {}", alarm.address.utm).as_str());
+        }
+
+        if let (Some(lat), Some(lng)) = (alarm.address.coords.lat, alarm.address.coords.lon) {
+            // Always start with coordinates-related text
+            text.push_str(format!("\n\nKoordinaten: {}, {}", lat, lng).as_str());
+
+            // Add Apple Maps link
+            text.push_str(format!("\n\nhttps://maps.apple.com/?q={},{}", lat, lng).as_str());
+        }
+
         let client = Client::new();
         let req_body = json!({
             "accesskey": self.api_key,
@@ -26,7 +53,7 @@ impl Api for DiveraV2 {
                 "foreign_id": alarm.id,
                 "priority": true,
                 "title": alarm.title,
-                "text": alarm.text,
+                "text": text,
                 "address": alarm.address.street,
                 "lat": 0,
                 "lng": 0,
