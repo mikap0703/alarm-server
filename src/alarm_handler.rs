@@ -1,6 +1,7 @@
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::sync::{Arc};
+use std::thread;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use crate::alarm::{Alarm};
@@ -122,26 +123,39 @@ impl AlarmHandler {
                             }
                         }
 
-                        let apis_lock = apis.lock().await;
+                        // Trigger alarm for each API
+                        {
+                            let apis_lock = apis.lock().await;
 
-                        for (api_name, receiver) in alarm.receiver.clone() {
-                            match apis_lock.get(&api_name) {
-                                Some(api) => {
-                                    let result = match alarm_type {
-                                        AlarmType::FirstAlarm => api.trigger_alarm(&alarm).await,
-                                        AlarmType::UpdateAlarm => api.update_alarm(&alarm).await,
-                                        AlarmType::DropAlarm => continue, // Skip this API
-                                    };
+                            for (api_name, _) in alarm.receiver.clone() {
+                                match apis_lock.get(&api_name) {
+                                    Some(api) => {
+                                        let result = match alarm_type {
+                                            AlarmType::FirstAlarm => api.trigger_alarm(&alarm).await,
+                                            AlarmType::UpdateAlarm => api.update_alarm(&alarm).await,
+                                            AlarmType::DropAlarm => continue, // Skip this API
+                                        };
 
-                                    if let Err(e) = result {
-                                        error!("Error triggering/updating alarm for API {}: {:?}", api_name, e);
+                                        if let Err(e) = result {
+                                            error!("Error triggering/updating alarm for API {}: {:?}", api_name, e);
+                                        }
                                     }
-                                },
-                                None => {
-                                    error!("API {} not found", api_name);
-                                    continue;
-                                }
-                            };
+                                    None => {
+                                        error!("API {} not found", api_name);
+                                        continue;
+                                    }
+                                };
+                            }
+                        }
+
+                        // Call webhooks
+                        for webhook in alarm.webhooks.clone() {
+                            info!("Calling webhook: {}", webhook);
+                            thread::spawn(move || {
+                                let client = reqwest::Client::new();
+                                let _ = client.get(webhook.as_str())
+                                    .send();
+                            });
                         }
 
                         // Update last_alarms after processing
