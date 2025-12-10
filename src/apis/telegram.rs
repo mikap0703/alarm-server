@@ -82,14 +82,12 @@ impl Api for Telegram {
             println!("{}", url);
 
             match client.get(&url).send().await {
-                Ok(res) => (
-                    if res.status().is_success() {
+                Ok(res) => if res.status().is_success() {
                         info!("Message sent to: {}", receiver);
                     } else {
                         error!("Error sending message to {}: {}", receiver, res.status());
                         println!("{:?}", res.text().await);
-                    }
-                ),
+                    },
                 Err(err) => eprintln!("Error sending message: {}", err),
             }
         }

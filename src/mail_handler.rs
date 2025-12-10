@@ -114,7 +114,7 @@ impl MailHandler {
             });
         }
 
-        // Start a thread for the mail sending loop
+        // Start a thread for the mail handling loop
         let mut seen_mails = VecDeque::with_capacity(3);
         loop {
             match recv_mails.recv() {
@@ -133,7 +133,7 @@ impl MailHandler {
                     if self.handle_mail(mail) {
                         info!("Mail was handled successfully");
                     } else {
-                        error!("Mail was not handled or an error occurred");
+                        warn!("Mail was not handled or an error occurred");
                     }
                 },
                 Err(e) => {

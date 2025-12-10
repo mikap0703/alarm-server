@@ -14,31 +14,39 @@ mod apis;
 mod serial_handler;
 
 fn setup_logger() -> Result<(), fern::InitError> {
-    Dispatch::new()
-        .format(|out, message, record| {
-            // Apply colors based on the log level
+    let debug = false;
+
+    let base = fern::Dispatch::new()
+        .format(move |out, message, record| {
             let level_color = match record.level() {
                 log::Level::Error => "ERROR".red().bold(),
-                log::Level::Warn => "WARN".yellow(),
-                log::Level::Info => "INFO".green(),
+                log::Level::Warn  => "WARN".yellow(),
+                log::Level::Info  => "INFO".green(),
                 log::Level::Debug => "DEBUG".blue(),
                 log::Level::Trace => "TRACE".purple(),
             };
 
-            // Print the formatted log
             out.finish(format_args!(
                 "{} {:<5} {}",
-                Local::now().format("%Y-%m-%d %H:%M:%S").to_string().cyan().bold(),
+                chrono::Local::now()
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+                    .cyan()
+                    .bold(),
                 level_color,
                 message
-            ))
+            ));
         })
-        .level(log::LevelFilter::Debug) // Minimum log level
-        // Log to the console
         .chain(std::io::stdout())
-        // Log to a file (without colors)
-        .chain(fern::log_file("config/app.log")?)
-        .apply()?;
+        .chain(fern::log_file("config/app.log")?);
+
+    // Apply level filter depending on debug flag
+    if debug {
+        base.level(log::LevelFilter::Debug).apply()?;
+    } else {
+        base.level(log::LevelFilter::Info).apply()?;
+    }
+
     Ok(())
 }
 
