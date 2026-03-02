@@ -30,6 +30,9 @@ RUN apt-get update && apt-get install -y \
 # Set the working directory inside the container
 WORKDIR /app
 
+# Ensure config directory exists for mounted configs and optional file logs
+RUN mkdir -p /app/config
+
 # Copy the compiled binary from the build stage
 COPY --from=builder /alarm-server/target/release/alarm-server /app/alarm-server
 

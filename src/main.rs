@@ -1,8 +1,9 @@
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 use std::thread;
 use crate::alarm_handler::AlarmHandler;
-use fern::Dispatch;
 use log::{error, info};
-use chrono::Local;
 use colored::Colorize;
 
 mod config;
@@ -13,10 +14,114 @@ mod mail_parser;
 mod apis;
 mod serial_handler;
 
+struct RotatingFileWriter {
+    path: PathBuf,
+    max_bytes: u64,
+    max_files: usize,
+    current_size: u64,
+    file: File,
+}
+
+impl RotatingFileWriter {
+    fn new(path: impl Into<PathBuf>, max_bytes: u64, max_files: usize) -> io::Result<Self> {
+        let path = path.into();
+
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+
+        let file = OpenOptions::new().create(true).append(true).open(&path)?;
+        let current_size = file.metadata()?.len();
+
+        Ok(Self {
+            path,
+            max_bytes,
+            max_files: max_files.max(1),
+            current_size,
+            file,
+        })
+    }
+
+    fn rotate(&mut self) -> io::Result<()> {
+        self.file.flush()?;
+
+        let oldest = rotated_path(&self.path, self.max_files);
+        if oldest.exists() {
+            fs::remove_file(&oldest)?;
+        }
+
+        for idx in (1..self.max_files).rev() {
+            let src = rotated_path(&self.path, idx);
+            let dst = rotated_path(&self.path, idx + 1);
+            if src.exists() {
+                fs::rename(src, dst)?;
+            }
+        }
+
+        if self.path.exists() {
+            fs::rename(&self.path, rotated_path(&self.path, 1))?;
+        }
+
+        self.file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&self.path)?;
+        self.current_size = 0;
+
+        Ok(())
+    }
+}
+
+impl Write for RotatingFileWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if self.current_size + buf.len() as u64 > self.max_bytes {
+            self.rotate()?;
+        }
+
+        let written = self.file.write(buf)?;
+        self.current_size += written as u64;
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.file.flush()
+    }
+}
+
+fn rotated_path(base: &Path, idx: usize) -> PathBuf {
+    let file_name = base
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| "app.log".to_string());
+    base.with_file_name(format!("{file_name}.{idx}"))
+}
+
 fn setup_logger() -> Result<(), fern::InitError> {
     let debug = false;
+    let default_level = if debug {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    };
+    let max_bytes = std::env::var("LOG_MAX_BYTES")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(10 * 1024 * 1024); // 10MB per file
+    let max_files = std::env::var("LOG_MAX_FILES")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(5);
+    let log_file_path = std::env::var("LOG_FILE_PATH").unwrap_or_else(|_| "config/app.log".to_string());
+    let log_to_file = std::env::var("LOG_TO_FILE")
+        .map(|v| !matches!(v.as_str(), "0" | "false" | "FALSE" | "False"))
+        .unwrap_or(true);
 
-    let base = fern::Dispatch::new()
+    let stdout_dispatch = fern::Dispatch::new()
         .format(move |out, message, record| {
             let level_color = match record.level() {
                 log::Level::Error => "ERROR".red().bold(),
@@ -37,15 +142,36 @@ fn setup_logger() -> Result<(), fern::InitError> {
                 message
             ));
         })
-        .chain(std::io::stdout())
-        .chain(fern::log_file("config/app.log")?);
+        .chain(std::io::stdout());
 
-    // Apply level filter depending on debug flag
-    if debug {
-        base.level(log::LevelFilter::Debug).apply()?;
-    } else {
-        base.level(log::LevelFilter::Info).apply()?;
+    let mut base = fern::Dispatch::new()
+        .level(default_level)
+        // Suppress noisy parser warnings like "foster parenting not implemented".
+        .level_for("html5ever", log::LevelFilter::Error)
+        .chain(stdout_dispatch);
+
+    if log_to_file {
+        match RotatingFileWriter::new(log_file_path, max_bytes, max_files) {
+            Ok(writer) => {
+                let file_dispatch = fern::Dispatch::new()
+                    .format(move |out, message, record| {
+                        out.finish(format_args!(
+                            "{} {:<5} {}",
+                            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                            record.level(),
+                            message
+                        ));
+                    })
+                    .chain(Box::new(writer) as Box<dyn Write + Send>);
+                base = base.chain(file_dispatch);
+            }
+            Err(err) => {
+                eprintln!("Failed to initialize file logging, continuing with stdout only: {}", err);
+            }
+        }
     }
+
+    base.apply()?;
 
     Ok(())
 }

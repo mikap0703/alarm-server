@@ -3,7 +3,6 @@ use std::hash::{Hash, Hasher};
 use std::thread;
 use std::time::Duration;
 use chrono::{DateTime, Local};
-use colored::Colorize;
 use flume::Sender;
 use imap::{Connection, Session};
 use imap::types::{Fetches, UnsolicitedResponse};
@@ -61,7 +60,7 @@ impl MailHandler {
     pub fn start(&self) {
         let (send_mails, recv_mails) = flume::unbounded();
 
-        let inbox_name = self.config.name.purple();
+        let inbox_name = &self.config.name;
 
         info!("{} MailHandler wird gestartet", inbox_name);
 
