@@ -1,6 +1,5 @@
 use async_trait::async_trait;
-use flume::Receiver;
-use crate::alarm::{Alarm, AlarmReceiver};
+use crate::alarm::Alarm;
 use crate::apis::Api;
 use log::info;
 use reqwest::Client;
@@ -22,28 +21,28 @@ impl Api for DiveraV2 {
         let mut text = alarm.text.clone();
 
         if alarm.address.object != "" {
-            text.push_str(format!("\n{}", alarm.address.object).as_str());
+            text.push_str(&format!("\n{}", alarm.address.object));
         }
 
         if alarm.address.info != "" {
-            text.push_str(format!(" ({})", alarm.address.info).as_str());
+            text.push_str(&format!(" ({})", alarm.address.info));
         }
 
         if alarm.address.object_id != "" {
-            text.push_str(format!("Objekt-ID: {}", alarm.address.object_id).as_str());
+            text.push_str(&format!("Objekt-ID: {}", alarm.address.object_id));
         }
 
         // Add UTM if available
         if alarm.address.utm != "" {
-            text.push_str(format!("\n\nUTM: {}", alarm.address.utm).as_str());
+            text.push_str(&format!("\n\nUTM: {}", alarm.address.utm));
         }
 
         if let (Some(lat), Some(lng)) = (alarm.address.coords.lat, alarm.address.coords.lon) {
             // Always start with coordinates-related text
-            text.push_str(format!("\n\nKoordinaten: {}, {}", lat, lng).as_str());
+            text.push_str(&format!("\n\nKoordinaten: {}, {}", lat, lng));
 
             // Add Apple Maps link
-            text.push_str(format!("\n\nhttps://maps.apple.com/?q={},{}", lat, lng).as_str());
+            text.push_str(&format!("\n\nhttps://maps.apple.com/?q={},{}", lat, lng));
         }
 
         let client = Client::new();

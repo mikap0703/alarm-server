@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use chrono::{DateTime, Local};
@@ -8,7 +10,6 @@ use imap::{Connection, Session};
 use imap::types::{Fetches, UnsolicitedResponse};
 use mailparse::{parse_mail, MailHeaderMap, ParsedMail};
 use regex::Regex;
-use twox_hash::XxHash64;
 use crate::alarm::Alarm;
 use crate::config::alarm_sources::MailConfig;
 use crate::mail_parser::{MailParser};
@@ -37,7 +38,7 @@ struct MailData {
 impl MailData {
     /// Generate a hash of all the fields combined.
     fn calculate_hash(&self) -> u64 {
-        let mut hasher = XxHash64::default();
+        let mut hasher = DefaultHasher::new();
         self.subject.hash(&mut hasher);
         self.sender.hash(&mut hasher);
         self.text_body.hash(&mut hasher);
@@ -59,6 +60,10 @@ impl MailHandler {
 
     pub fn start(&self) {
         let (send_mails, recv_mails) = flume::unbounded();
+        let send_mails = Arc::new(send_mails);
+        if self.debug {
+            debug!("MailHandler debug mode requested; IMAP client-level debug output is not enabled in this version.");
+        }
 
         let inbox_name = &self.config.name;
 
@@ -66,7 +71,7 @@ impl MailHandler {
 
         // Start a thread for the idle loop
         if self.config.idle {
-            let send_mails = send_mails.clone();
+            let send_mails = Arc::clone(&send_mails);
             let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
                 .connect()
                 .expect("Could not connect to imap server");
@@ -79,8 +84,6 @@ impl MailHandler {
 
             info!("{} Idle loop wird gestartet", inbox_name);
 
-            imap.debug = self.debug;
-
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
                 MailHandler::idle_loop(&mut imap, send_mails);
@@ -90,7 +93,7 @@ impl MailHandler {
 
         // Start a thread for the mail checking loop
         if self.config.polling {
-            let send_mails = send_mails.clone();
+            let send_mails = Arc::clone(&send_mails);
             let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
                 .connect()
                 .expect("Could not connect to imap server");
@@ -104,8 +107,6 @@ impl MailHandler {
             info!("{} Polling loop wird gestartet", inbox_name);
 
             let interval = Duration::from_secs(self.config.polling_interval);
-
-            imap.debug = self.debug;
 
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
@@ -142,7 +143,7 @@ impl MailHandler {
         }
     }
 
-    fn idle_loop(imap: &mut Session<Connection>, send_mails: Sender<MailData>) {
+    fn idle_loop(imap: &mut Session<Connection>, send_mails: Arc<Sender<MailData>>) {
         'idle_loop: loop {
             info!("Warten auf neue Mails...");
             let mut new_mail_id = None;
@@ -173,14 +174,14 @@ impl MailHandler {
                             continue 'idle_loop;
                         }
                     };
-                    MailHandler::parse_forward_mail(send_mails.clone(), messages);
+                    MailHandler::parse_forward_mail(send_mails.as_ref(), messages);
                 }
                 Err(e) => error!("IDLE finished with error {:?}", e),
             }
         }
     }
 
-    fn polling_loop(imap: &mut Session<Connection>, send_mails: Sender<MailData>, interval: Duration) {
+    fn polling_loop(imap: &mut Session<Connection>, send_mails: Arc<Sender<MailData>>, interval: Duration) {
         // Track the most recent message UID we've processed
         let mut last_processed_uid = 0;
 
@@ -220,7 +221,7 @@ impl MailHandler {
                 };
 
                 info!("New mail found (UID: {})...forwarding", latest_uid);
-                MailHandler::parse_forward_mail(send_mails.clone(), messages);
+                MailHandler::parse_forward_mail(send_mails.as_ref(), messages);
 
                 // Update the last processed UID
                 last_processed_uid = latest_uid;
@@ -233,7 +234,7 @@ impl MailHandler {
         }
     }
 
-    fn parse_forward_mail(send_mails: Sender<MailData>, messages: Fetches) {
+    fn parse_forward_mail(send_mails: &Sender<MailData>, messages: Fetches) {
         let message = match messages.iter().next() {
             Some(message) => message,
             None => {
@@ -330,7 +331,7 @@ impl MailHandler {
             return false;
         }
 
-        if (self.config.max_age > 0) {
+        if self.config.max_age > 0  {
             let now = Local::now();
             let mail_date = mail_data.date;
             let age = now.signed_duration_since(mail_date).num_seconds() as u64;

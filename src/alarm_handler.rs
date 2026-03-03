@@ -10,9 +10,8 @@ use crate::apis::divera_v2::DiveraV2;
 use crate::apis::mock_api::MockApi;
 use crate::apis::telegram::Telegram;
 use crate::config::alarm_templates::AlarmTemplates;
-use crate::config::general::{ApiConfig, ApiType, GeneralConfig};
+use crate::config::general::{ApiType, GeneralConfig};
 use log::{debug, error, info, warn};
-use crate::config::Configs;
 
 pub struct AlarmHandler {
     // channel to send and receive alarms

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::time::{Instant};
 use serde_derive::Serialize;
 use crate::config::alarm_templates::AlarmTemplateReceiver;
@@ -215,7 +214,7 @@ impl Alarm {
     pub fn apply_template(&mut self, target: String, template_receiver: AlarmTemplateReceiver) {
         match template_receiver {
             AlarmTemplateReceiver::Api { members, groups, vehicles } => {
-                let mut receiver = self.receiver.entry(target).or_insert(AlarmReceiver {
+                let receiver = self.receiver.entry(target).or_insert(AlarmReceiver {
                     groups: vec![],
                     vehicles: vec![],
                     members: vec![],
