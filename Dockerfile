@@ -1,43 +1,37 @@
 # Stage 1: Build dependencies and project
-FROM rust:latest AS builder
+# Change 'latest' to 'bookworm' to match your runtime OS version
+FROM rust:bookworm AS builder
 
 RUN apt update && apt install -y libudev-dev pkg-config
 
-# Set the working directory for the build
 WORKDIR /alarm-server
 
-# Copy the Cargo manifests to leverage Docker's cache for dependencies
+# Copy the Cargo manifests
 COPY Cargo.toml Cargo.lock ./
 
-# Build dependencies only (no source code copied yet)
-RUN cargo build --release --manifest-path ./Cargo.toml || true
+# Build dependencies only
+RUN cargo build --release || true
 
-# Now copy the source code
+# Copy the source code
 COPY ./src ./src
 
-# Final build for the actual binary with the full project source
+# Final build
 RUN cargo build --release
 
 # Stage 2: Runtime environment
 FROM debian:bookworm-slim
 
-# Install runtime dependencies, including libssl for OpenSSL support
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
+    libudev1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory inside the container
 WORKDIR /app
-
-# Ensure config directory exists for mounted configs and optional file logs
 RUN mkdir -p /app/config
 
-# Copy the compiled binary from the build stage
+# Copy the binary
 COPY --from=builder /alarm-server/target/release/alarm-server /app/alarm-server
-
-# Ensure the binary is executable
 RUN chmod +x /app/alarm-server
 
-# Set the startup command to run your binary
 CMD ["./alarm-server"]
