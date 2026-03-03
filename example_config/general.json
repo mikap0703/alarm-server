@@ -1,23 +1,25 @@
 {
   "apis": [
     {
-      "name": "Divera1",
+      "name": "Divera",
       "api": "Divera",
-      "api_key": "asdf1234"
+      "api_key": "your-divera-accesskey"
     },
     {
-      "name": "Alamos1",
-      "api": "Alamos",
-      "api_key": "qwert5678"
-    },
-    {
-      "name": "Telegram1",
+      "name": "Telegram",
       "api": "Telegram",
-      "api_key": "zxcv9876"
+      "api_key": "your-telegram-bot-token"
+    },
+    {
+      "name": "Alamos",
+      "api": "Alamos",
+      "api_key": "your-alamos-key"
     }
   ],
+  "source_priority": [
+    "Inbox",
+    "Pager"
+  ],
   "timeout": 5000,
-  "serial_dme": false,
-  "mail": true,
-  "alarm": false
+  "alarm": true
 }

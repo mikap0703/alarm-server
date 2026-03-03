@@ -1,37 +1,46 @@
 {
   "default": {
-    "members": [
-      "WehrführerID"
-    ]
+    "Telegram": {
+      "members": [
+        "123456789"
+      ]
+    }
   },
   "Musterstadt Vollalarm": {
-    "groups": [
-      "Mannschaft Gruppe"
-    ],
-    "vehicles": [
-      "FL MS 1/10",
-      "FL MS 1/31",
-      "FL MS 1/46"
-    ],
-    "webhooks": [
+    "Divera": {
+      "groups": [
+        "Mannschaft Gruppe"
+      ],
+      "vehicles": [
+        "FL MS 1/10",
+        "FL MS 1/31",
+        "FL MS 1/46"
+      ]
+    },
+    "Webhooks": [
       "http://192.168.178.112/relay/1"
     ]
   },
   "DLK": {
-    "groups": [
-      "DLK Gruppe"
-    ],
-    "vehicles": [
-      "FL MS 1/10",
-      "FL MS 1/31"
-    ]
+    "Divera": {
+      "groups": [
+        "DLK Gruppe"
+      ],
+      "vehicles": [
+        "FL MS 1/31"
+      ]
+    }
   },
-  "Wehrführung": {
-    "vehicles": [
-      "FL MS 0/10"
-    ],
-    "members": [
-      "WehrführerID"
-    ]
+  "Wehrfuehrung": {
+    "Telegram": {
+      "members": [
+        "987654321"
+      ]
+    },
+    "Divera": {
+      "groups": [
+        "Fuehrung"
+      ]
+    }
   }
 }
