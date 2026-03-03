@@ -122,8 +122,8 @@ impl AlarmHandler {
                             }
                         }
 
-                        // Trigger alarm for each API
-                        {
+                        // Trigger alarm for each API when alarming is enabled in general config.
+                        if config.alarm {
                             let apis_lock = apis.lock().await;
 
                             for (api_name, _) in alarm.receiver.clone() {
@@ -145,16 +145,22 @@ impl AlarmHandler {
                                     }
                                 };
                             }
+                        } else {
+                            info!("Alarm dispatch is disabled by general config (general.alarm = false)");
                         }
 
-                        // Call webhooks
-                        for webhook in alarm.webhooks.clone() {
-                            info!("Calling webhook: {}", webhook);
-                            thread::spawn(move || {
-                                let client = reqwest::Client::new();
-                                let _ = client.get(webhook.as_str())
-                                    .send();
-                            });
+                        // Call webhooks when alarming is enabled in general config.
+                        if config.alarm {
+                            for webhook in alarm.webhooks.clone() {
+                                info!("Calling webhook: {}", webhook);
+                                thread::spawn(move || {
+                                    let client = reqwest::Client::new();
+                                    let _ = client.get(webhook.as_str())
+                                        .send();
+                                });
+                            }
+                        } else {
+                            info!("Webhook dispatch is disabled by general config (general.alarm = false)");
                         }
 
                         // Update last_alarms after processing
