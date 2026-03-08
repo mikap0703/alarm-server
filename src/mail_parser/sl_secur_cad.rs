@@ -190,14 +190,24 @@ impl MailParser for SecurCadParser {
             0
         };
 
-        let unit_end_index = if let Some(index) = key_order.iter().position(|x| x == "Meldender des Hilfeersuchens") {
+        let mut unit_end_index = 0;
+
+        unit_end_index = if let Some(index) = key_order.iter().position(|x| x == "Meldender des Hilfeersuchens") {
             index
         } else {
             0
         };
 
-        println!("{:?}", table);
+        if unit_end_index == 0 {
+            unit_end_index = if let Some(index) = key_order.iter().position(|x| x == "Druckdatum:") {
+                index
+            } else {
+                0
+            };
+        }
 
+
+        // todo: check if this is really needed...better would be to check if array has any length
         if unit_end_index > unit_start_index {
             // vec of unit keys
             let unit_keys = &key_order[unit_start_index..unit_end_index];
