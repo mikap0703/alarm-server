@@ -160,7 +160,7 @@ impl Alarm {
     }
 
     pub fn add_to_text(&mut self, text: String) {
-        self.text.push_str(&text);
+        self.text.push_str(text.as_str());
     }
 
     pub fn set_time(&mut self, time: Instant) {
