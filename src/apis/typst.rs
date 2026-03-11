@@ -68,15 +68,7 @@ fn render_alarm_pdf(
     generate_static_map(lat, lon, &map_path)?;
 
     // 2. Prepare JSON for Typst
-    let json_value = json!({
-        "origin": alarm.origin,
-        "id": alarm.id,
-        "title": alarm.title,
-        "text": alarm.text,
-        "lat": lat,
-        "lon": lon,
-        "map_image": map_path.to_str().unwrap_or_default(),
-    });
+    let json_value = json!(alarm);
 
     let json_data = serde_json::to_string_pretty(&json_value)
         .map_err(|e| format!("Failed to serialize JSON: {}", e))?;

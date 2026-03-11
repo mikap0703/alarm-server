@@ -19,7 +19,7 @@ quoted_printable = "0.5.1"
 tokio = { version = "1.50.0", features = ["rt", "rt-multi-thread", "macros"] }
 async-trait = "0.1.89"
 log = "0.4.29"
-chrono = "0.4.44"
+chrono = { version = "0.4.44", features = ["serde"] }
 fern = "0.7.1"
 colored = "3.1.1"
 serialport = "4.8.1"

@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use serde_derive::Serialize;
 use crate::config::alarm_templates::AlarmTemplateReceiver;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Address {
     pub street: String,
     pub city: String,
@@ -14,7 +14,7 @@ pub struct Address {
     pub coords: Coordinates,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Coordinates {
     pub lat: Option<f64>,
     pub lon: Option<f64>,
@@ -27,7 +27,7 @@ pub struct AlarmReceiver {
     pub members: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MailData {
     id: String,
     sender: String,
@@ -36,14 +36,14 @@ pub struct MailData {
     date: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DmeData {
     pub(crate) date: String,
     pub(crate) ric: String,
     pub(crate) content: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Alarm {
     pub id: String,
     pub origin: String,
