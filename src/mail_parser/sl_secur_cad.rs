@@ -3,6 +3,7 @@ use crate::config::alarm_sources::MailConfig;
 use crate::mail_parser::helpers::{get_table_key_order, parse_tables};
 use crate::mail_parser::MailParser;
 use log::{debug, info};
+use regex::Regex;
 
 pub struct SecurCadParser;
 
@@ -212,14 +213,23 @@ impl MailParser for SecurCadParser {
             // vec of unit keys
             let unit_keys = &key_order[unit_start_index..unit_end_index];
 
+            let compiled_ignore_patterns: Vec<Regex> = config.ignore_units
+                .iter()
+                .filter_map(|s| Regex::new(s).ok())
+                .collect();
+
             for key in unit_keys {
                 if table.contains_key(key) {
-                    // only add unit if it's not in the ignore_units list
-                    if config.ignore_units.contains(&key.to_string()) {
+                    let key_str = key.to_string();
+
+                    // Much faster check
+                    let is_ignored = compiled_ignore_patterns.iter().any(|re| re.is_match(&key_str));
+
+                    if is_ignored {
                         continue;
-                    } else {
-                        alarm.add_unit(key.to_string());
                     }
+
+                    alarm.add_unit(key_str);
                 }
             }
 

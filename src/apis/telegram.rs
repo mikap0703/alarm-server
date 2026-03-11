@@ -36,59 +36,66 @@ fn escape_markdown_v2(text: &str) -> String {
 #[async_trait]
 impl Api for Telegram {
     async fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String> {
-        info!("Telegram API: Trigger");
+        info!("Telegram API: Triggering alarm via POST");
 
         let receivers = alarm.get_receivers(self.name.as_str());
-
         let client = Client::new();
 
         for receiver in receivers.members.clone() {
-            info!("Sending message to: {}", receiver);
+            // 1. Prepare and escape individual data fields
+            let title = escape_markdown_v2(&alarm.title);
+            let body_text = escape_markdown_v2(&alarm.text);
 
-            let mut text = format!("*{}*\n{}", escape_markdown_v2(&alarm.title), &alarm.text);
+            // 2. Build the message
+            let mut text = format!("*{}*\n{}", title, body_text);
 
-            if alarm.address.object != "" {
-                text.push_str(&format!("\n{}", alarm.address.object));
+            if !alarm.address.object.is_empty() {
+                text.push_str(&format!("\n{}", escape_markdown_v2(&alarm.address.object)));
             }
 
-            if alarm.address.info != "" {
-                text.push_str(&format!(" ({})", alarm.address.info));
-            }
-
-            if alarm.address.object_id != "" {
-                text.push_str(&format!("Objekt-ID: {}", alarm.address.object_id));
-            }
-
-            // Add UTM if available
-            if alarm.address.utm != "" {
-                text.push_str(&format!("\n\nUTM: {}", alarm.address.utm));
+            if !alarm.address.info.is_empty() {
+                // FIX: Escape the literal parentheses used for formatting
+                text.push_str(&format!(" \\({}\\)", escape_markdown_v2(&alarm.address.info)));
             }
 
             if let (Some(lat), Some(lng)) = (alarm.address.coords.lat, alarm.address.coords.lon) {
-                // Always start with coordinates-related text
-                text.push_str(&format!("\n\nKoordinaten: {}, {}", lat, lng));
+                let lat_s = escape_markdown_v2(&lat.to_string());
+                let lng_s = escape_markdown_v2(&lng.to_string());
+                text.push_str(&format!("\n\n*Koordinaten:* {}, {}", lat_s, lng_s));
 
-                // Add Apple Maps link
-                text.push_str(&format!("\n\nhttps://maps.apple.com/?q={},{}", lat, lng));
+                // FIX: Only escape ')' and '\' inside the URL part of a Markdown link
+                let raw_url = format!("https://maps.apple.com/?q={},{}", lat, lng);
+                let link_url = raw_url.replace('\\', "\\\\").replace(')', "\\)");
+
+                text.push_str(&format!("\n\n[Apple Maps]({})\n", link_url));
             }
 
-            text = escape_markdown_v2(&text);
+            let alarm_einheiten = alarm.units.iter().map(|unit| escape_markdown_v2(unit)).collect::<Vec<String>>().join("\n");
 
-            let url = format!(
-                "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}&parse_mode=MarkdownV2",
-                self.bot_token, receiver, encode(&*text),
-            );
+            text.push_str(&alarm_einheiten);
 
-            println!("{}", url);
+            // 3. Construct the JSON payload
+            let endpoint = format!("https://api.telegram.org/bot{}/sendMessage", self.bot_token);
+            let payload = serde_json::json!({
+                "chat_id": receiver,
+                "text": text,
+                "parse_mode": "MarkdownV2"
+            });
 
-            match client.get(&url).send().await {
-                Ok(res) => if res.status().is_success() {
-                        info!("Message sent to: {}", receiver);
+            // 4. Send the POST request
+            match client.post(&endpoint).json(&payload).send().await {
+                Ok(res) => {
+                    let status = res.status();
+                    let response_body = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+
+                    if status.is_success() {
+                        info!("Message successfully sent to: {}", receiver);
                     } else {
-                        error!("Error sending message to {}: {}", receiver, res.status());
-                        println!("{:?}", res.text().await);
-                    },
-                Err(err) => eprintln!("Error sending message: {}", err),
+                        error!("Telegram API Error ({}): {}", status, response_body);
+                        // If it still fails, the response_body will tell us EXACTLY which character failed.
+                    }
+                }
+                Err(err) => error!("Network error while contacting Telegram: {}", err),
             }
         }
 
