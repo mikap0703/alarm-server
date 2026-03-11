@@ -154,9 +154,24 @@ impl AlarmHandler {
                             for webhook in alarm.webhooks.clone() {
                                 info!("Calling webhook: {}", webhook);
                                 thread::spawn(move || {
-                                    let client = reqwest::Client::new();
-                                    let _ = client.get(webhook.as_str())
-                                        .send();
+                                    let client = reqwest::blocking::Client::new(); // Using blocking client for simplicity in threads
+                                    match client.get(webhook.as_str()).send() {
+                                        Ok(response) => {
+                                            let status = response.status();
+                                            let body = response.text().unwrap_or_else(|_| "Could not read body".to_string());
+                                            info!("Webhook {} ({})", webhook, status);
+                                            if !status.is_success() {
+                                                error!("--- Webhook Error ---");
+                                                error!("Status: {}", status);
+                                                error!("Body: {}", body);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            error!("--- Webhook Error ---");
+                                            error!("URL: {}", webhook);
+                                            error!("Error: {}", e);
+                                        }
+                                    }
                                 });
                             }
                         } else {
