@@ -34,6 +34,7 @@ Each item in `apis` has:
 - `Divera`: sends alarms to Divera 24/7 API v2.
 - `Telegram`: sends Telegram messages.
 - `Alamos`: currently mapped to a mock/no-op implementation.
+- `Typst`: renders a PDF via the `typst` CLI into a local output directory.
 - `api_key` (string, required): credential/token for the selected `api` type.
 
 API key meaning by type:
@@ -41,6 +42,7 @@ API key meaning by type:
 - `Divera`: Divera `accesskey`.
 - `Telegram`: bot token (format like `123456:ABC...`).
 - `Alamos`: currently unused by mock backend.
+- `Typst`: output directory path override (default `config/typst`).
 
 ## `config/alarm_sources.json`
 

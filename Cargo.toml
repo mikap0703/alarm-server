@@ -17,7 +17,6 @@ reqwest = { version = "0.13.2", features = ["blocking", "json"] }
 scraper = "0.25.0"
 quoted_printable = "0.5.1"
 tokio = { version = "1.41.1", features = ["rt", "rt-multi-thread", "macros"] }
-urlencoding = "2.1.3"
 async-trait = "0.1.83"
 log = "0.4.22"
 chrono = "0.4.38"
@@ -25,3 +24,4 @@ fern = "0.7.1"
 colored = "3.0.0"
 serialport = "4.7.0"
 encoding_rs = "0.8.34"
+staticmap = "0.4.2"

@@ -20,4 +20,5 @@ pub enum ApiType {
     Divera,
     Alamos,
     Telegram,
+    Typst,
 }

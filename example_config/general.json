@@ -14,6 +14,11 @@
       "name": "Alamos",
       "api": "Alamos",
       "api_key": "your-alamos-key"
+    },
+    {
+      "name": "Typst",
+      "api": "Typst",
+      "api_key": "config/typst"
     }
   ],
   "source_priority": [

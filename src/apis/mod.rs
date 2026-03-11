@@ -1,6 +1,7 @@
 pub mod divera_v2;
 pub mod mock_api;
 pub mod telegram;
+pub mod typst;
 use crate::alarm::Alarm;
 use async_trait::async_trait;
 

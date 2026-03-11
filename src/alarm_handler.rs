@@ -9,6 +9,7 @@ use crate::apis::Api;
 use crate::apis::divera_v2::DiveraV2;
 use crate::apis::mock_api::MockApi;
 use crate::apis::telegram::Telegram;
+use crate::apis::typst::{Typst};
 use crate::config::alarm_templates::AlarmTemplates;
 use crate::config::general::{ApiType, GeneralConfig};
 use log::{debug, error, info, warn};
@@ -39,6 +40,7 @@ impl AlarmHandler {
                 ApiType::Divera => Box::new(DiveraV2 { name, api_key }),
                 ApiType::Alamos => Box::new(MockApi { name, api_key }),
                 ApiType::Telegram => Box::new(Telegram { name, bot_token: api_key }),
+                ApiType::Typst => { Box::new(Typst {name}) },
                 // _ => Box::new(MockApi { api_key: api_config.api_key }),
             };
             apis_map.insert(api_config.name.clone(), api);
@@ -225,3 +227,4 @@ fn compare_alarms(new_alarm: &Alarm, old_alarm: &Alarm, config: &GeneralConfig) 
         AlarmType::FirstAlarm
     }
 }
+
