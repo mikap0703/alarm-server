@@ -2,7 +2,7 @@ use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::sync::{Arc};
 use std::thread;
-use std::time::Duration;
+use chrono::Duration;
 use tokio::sync::Mutex;
 use crate::alarm::{Alarm};
 use crate::apis::Api;
@@ -196,8 +196,8 @@ impl AlarmHandler {
 
 // Move compare_alarms to a standalone function
 fn compare_alarms(new_alarm: &Alarm, old_alarm: &Alarm, config: &GeneralConfig) -> AlarmType {
-    let time_diff = new_alarm.time - old_alarm.time;
-    if time_diff < Duration::from_secs(config.timeout) {
+    let time_diff = new_alarm.time.signed_duration_since(old_alarm.time);
+    if time_diff < Duration::seconds(config.timeout as i64) {
         // update but maybe irrelevant
         let new_source = &new_alarm.origin;
         let new_source_key = config.source_priority.iter().position(|n| n == new_source);
@@ -227,4 +227,3 @@ fn compare_alarms(new_alarm: &Alarm, old_alarm: &Alarm, config: &GeneralConfig) 
         AlarmType::FirstAlarm
     }
 }
-

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::time::{Instant};
+use chrono::{DateTime, Utc};
 use serde_derive::Serialize;
 use crate::config::alarm_templates::AlarmTemplateReceiver;
 
@@ -49,7 +49,7 @@ pub struct Alarm {
     pub origin: String,
     pub title: String,
     pub text: String,
-    pub time: Instant,
+    pub time: DateTime<Utc>,
     pub address: Address,
     pub units: Vec<String>,
     pub receiver: HashMap<String, AlarmReceiver>,
@@ -116,7 +116,7 @@ impl Alarm {
             origin: "".to_string(),
             title: "".to_string(),
             text: "".to_string(),
-            time: Instant::now(),
+            time: Utc::now(),
             address: Address::new(),  // Use Address::new() here
             units: vec![],
             receiver: HashMap::new(),
@@ -163,7 +163,7 @@ impl Alarm {
         self.text.push_str(text.as_str());
     }
 
-    pub fn set_time(&mut self, time: Instant) {
+    pub fn set_time(&mut self, time: DateTime<Utc>) {
         self.time = time;
     }
 
