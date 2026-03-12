@@ -66,8 +66,8 @@ impl AlarmHandler {
 
         for (api_name, api) in apis_lock.iter() {
             match api.check_connection().await {
-                Ok(message) => info!("API '{}' connection ok: {}", api_name, message),
-                Err(err) => error!("API '{}' connection failed: {}", api_name, err),
+                Ok(message) => info!("API '{}' Verbindung steht: {}", api_name, message),
+                Err(err) => error!("API '{}' Verbindung fehlgeschlagen: {}", api_name, err),
             }
         }
     }

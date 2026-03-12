@@ -121,16 +121,15 @@ impl Api for DiveraV2 {
         }
 
         let value: Value = serde_json::from_str(&body).map_err(|err| format!("Invalid JSON: {}", err))?;
-        let tenant = value
+        let divera_name = value
             .get("data")
-            .and_then(|v| v.get("data"))
             .and_then(|v| v.get("cluster"))
             .and_then(|v| v.get("name"))
             .and_then(|v| v.as_str());
 
-        match tenant {
-            Some(name) => Ok(format!("tenant: {}", name)),
-            None => Ok("connected (tenant unknown)".to_string()),
+        match divera_name {
+            Some(name) => Ok(format!("{}", name)),
+            None => Ok("Verbunden, jedoch Name unbekannt".to_string()),
         }
     }
 }
