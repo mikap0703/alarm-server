@@ -4,6 +4,7 @@ use crate::apis::Api;
 use log::info;
 use reqwest::Client;
 use serde_json::json;
+use serde_json::Value;
 
 pub struct DiveraV2 {
     pub name: String,
@@ -98,5 +99,38 @@ impl Api for DiveraV2 {
         info!("Divera API: Updating alarm");
         info!("{:?}", alarm);
         Ok(())
+    }
+
+    async fn check_connection(&self) -> Result<String, String> {
+        let client = Client::new();
+        let url = format!(
+            "https://app.divera247.com/api/v2/pull/all?accesskey={}",
+            self.api_key
+        );
+        let res = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|err| format!("Request error: {}", err))?;
+
+        let status = res.status();
+        let body = res.text().await.map_err(|err| format!("Failed to read response: {}", err))?;
+
+        if !status.is_success() {
+            return Err(format!("HTTP {} - {}", status, body));
+        }
+
+        let value: Value = serde_json::from_str(&body).map_err(|err| format!("Invalid JSON: {}", err))?;
+        let tenant = value
+            .get("data")
+            .and_then(|v| v.get("data"))
+            .and_then(|v| v.get("cluster"))
+            .and_then(|v| v.get("name"))
+            .and_then(|v| v.as_str());
+
+        match tenant {
+            Some(name) => Ok(format!("tenant: {}", name)),
+            None => Ok("connected (tenant unknown)".to_string()),
+        }
     }
 }

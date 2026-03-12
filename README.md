@@ -15,8 +15,8 @@ If a file is missing or invalid JSON, startup fails.
 Top-level fields:
 
 - `apis` (array, required): API backends that can receive alarms.
-- `timeout` (u64 seconds, required): time window used to classify new alarms as updates vs first alarms.
-- `source_priority` (array of strings, required): source ranking used when multiple sources produce alarms inside `timeout`.
+- `alarm_window_seconds` (u64 seconds, required): time window used to classify new alarms as updates vs first alarms.
+- `source_priority` (array of strings, required): source ranking used when multiple sources produce alarms inside `alarm_window_seconds`.
 - `alarm` (bool, required): global outbound dispatch switch.
 
 `alarm` behavior:
@@ -119,7 +119,7 @@ Behavior:
     { "name": "Telegram", "api": "Telegram", "api_key": "your-telegram-bot-token" }
   ],
   "source_priority": ["Inbox", "Serial"],
-  "timeout": 5000,
+  "alarm_window_seconds": 5000,
   "alarm": true
 }
 ```

@@ -25,6 +25,7 @@
     "Inbox",
     "Pager"
   ],
-  "timeout": 5000,
-  "alarm": true
+  "alarm_window_seconds": 5000,
+  "alarm": true,
+  "delay": 0
 }

@@ -9,4 +9,5 @@ use async_trait::async_trait;
 pub trait Api: Send {
     async fn trigger_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String>;
     async fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Result<(), String>;
+    async fn check_connection(&self) -> Result<String, String>;
 }

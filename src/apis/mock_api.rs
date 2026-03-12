@@ -21,4 +21,8 @@ impl Api for MockApi {
         debug!("{:?}", alarm);
         Ok(())
     }
+
+    async fn check_connection(&self) -> Result<String, String> {
+        Ok("mock ok".to_string())
+    }
 }

@@ -35,6 +35,29 @@ impl Api for Typst {
     async fn update_alarm<'a>(&'a self, alarm: &'a Alarm) -> Result<(), String> {
         self.trigger_alarm(alarm).await
     }
+
+    async fn check_connection(&self) -> Result<String, String> {
+        let typst_bin = std::env::var("TYPST_BIN").unwrap_or_else(|_| "typst".to_string());
+        let typst_bin_clone = typst_bin.clone();
+        let output = tokio::task::spawn_blocking(move || {
+            Command::new(&typst_bin_clone).arg("--version").output()
+        })
+        .await
+        .map_err(|e| format!("Typst check thread panicked: {}", e))?
+        .map_err(|e| format!("Failed to execute Typst binary: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Typst check failed: {}", stderr.trim()));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if stdout.is_empty() {
+            Ok("typst OK".to_string())
+        } else {
+            Ok(stdout)
+        }
+    }
 }
 
 fn render_alarm_pdf(

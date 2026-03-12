@@ -226,6 +226,7 @@ impl MailParser for SecurCadParser {
                     let is_ignored = compiled_ignore_patterns.iter().any(|re| re.is_match(&key_str));
 
                     if is_ignored {
+                        println!("ignoring unit: {}", key_str);
                         continue;
                     }
 

@@ -3,9 +3,12 @@ use serde_derive::Deserialize;
 #[derive(Deserialize, Debug, Clone)]
 pub struct GeneralConfig {
     pub apis: Vec<ApiConfig>,
-    pub timeout: u64,
+    #[serde(alias = "timeout")]
+    pub alarm_window_seconds: u64,
     pub source_priority: Vec<String>,
     pub alarm: bool,
+    #[serde(default)]
+    pub delay: u64,
 }
 
 #[derive(Deserialize, Debug, Clone)]

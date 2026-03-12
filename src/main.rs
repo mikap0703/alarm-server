@@ -2,8 +2,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::thread;
+use std::time::Duration;
 use crate::alarm_handler::AlarmHandler;
-use log::{error, info};
+use log::{error, info, warn};
 use colored::Colorize;
 
 mod config;
@@ -176,6 +177,79 @@ fn setup_logger() -> Result<(), fern::InitError> {
     Ok(())
 }
 
+fn api_type_label(api_type: &config::general::ApiType) -> &'static str {
+    match api_type {
+        config::general::ApiType::Divera => "Divera",
+        config::general::ApiType::Alamos => "Alamos",
+        config::general::ApiType::Telegram => "Telegram",
+        config::general::ApiType::Typst => "Typst",
+    }
+}
+
+fn log_startup_config(configs: &config::Configs) {
+    if configs.general.alarm {
+        info!("Alarm werden weitergeleitet");
+    } else {
+        warn!("Alarm werden NICHT weitergeleitet");
+    }
+
+    // --- Mail Sources ---
+    let active_mail_sources: Vec<_> = configs
+        .alarm_sources
+        .mail_sources
+        .iter()
+        .filter(|source| source.active)
+        .collect();
+
+    if active_mail_sources.is_empty() {
+        info!("Active mail sources: none");
+    } else {
+        // 1. Print the summary first
+        let names: Vec<String> = active_mail_sources.iter().map(|s| s.name.clone()).collect();
+        info!("Aktive Mail Quellen: {}", names.join(", "));
+
+        // 2. Print individual details
+        for source in active_mail_sources {
+            info!(
+            "Mail Source {} wartet auf Mails von {} mit dem Betreff {}.",
+            source.name, source.alarm_sender, source.alarm_subject
+        );
+        }
+    }
+
+    // --- Serial Sources ---
+    let active_serial_sources: Vec<_> = configs
+        .alarm_sources
+        .serial_sources
+        .iter()
+        .filter(|source| source.active)
+        .collect();
+
+    if active_serial_sources.is_empty() {
+        info!("Active serial sources: none");
+    } else {
+        // 1. Print the summary first
+        let names: Vec<String> = active_serial_sources.iter().map(|s| s.name.clone()).collect();
+        info!("Active serial sources: {}", names.join(", "));
+
+        // 2. Print individual details
+        for source in active_serial_sources {
+            info!(
+            "Serial Source {} wartet auf Daten von {} (baudrate {}).",
+            source.name, source.port, source.baudrate
+        );
+        }
+    }
+
+    if configs.general.apis.is_empty() {
+        info!("APIs configured: none");
+    } else {
+        for api in &configs.general.apis {
+            info!("API configured: '{}' ({})", api.name, api_type_label(&api.api));
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(e) = setup_logger() {
@@ -191,11 +265,21 @@ async fn main() {
         }
     };
 
+    log_startup_config(&configs);
+    if configs.general.delay > 0 {
+        info!(
+            "Warte {}s nach Konfig-Ausgabe vor dem Start der Handler...",
+            configs.general.delay
+        );
+        tokio::time::sleep(Duration::from_secs(configs.general.delay)).await;
+    }
+
     // channel to send and receive alarms
     let (send_alarms, recv_alarms) = flume::unbounded();
 
     let alarm_handler = AlarmHandler::new(recv_alarms, configs.general, configs.alarm_templates.clone());
 
+    alarm_handler.check_api_connections().await;
     alarm_handler.start();
 
     // starting handlers for mail sources

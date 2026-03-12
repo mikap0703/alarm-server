@@ -57,6 +57,21 @@ impl AlarmHandler {
         }
     }
 
+    pub async fn check_api_connections(&self) {
+        let apis_lock = self.apis.lock().await;
+        if apis_lock.is_empty() {
+            info!("No APIs configured");
+            return;
+        }
+
+        for (api_name, api) in apis_lock.iter() {
+            match api.check_connection().await {
+                Ok(message) => info!("API '{}' connection ok: {}", api_name, message),
+                Err(err) => error!("API '{}' connection failed: {}", api_name, err),
+            }
+        }
+    }
+
     pub fn start(&self) {
         let recv_alarms = self.recv_alarms.clone();
         let apis = self.apis.clone();
@@ -197,7 +212,7 @@ impl AlarmHandler {
 // Move compare_alarms to a standalone function
 fn compare_alarms(new_alarm: &Alarm, old_alarm: &Alarm, config: &GeneralConfig) -> AlarmType {
     let time_diff = new_alarm.time.signed_duration_since(old_alarm.time);
-    if time_diff < Duration::seconds(config.timeout as i64) {
+    if time_diff < Duration::seconds(config.alarm_window_seconds as i64) {
         // update but maybe irrelevant
         let new_source = &new_alarm.origin;
         let new_source_key = config.source_priority.iter().position(|n| n == new_source);

@@ -3,6 +3,7 @@ use crate::alarm::Alarm;
 use crate::apis::Api;
 use reqwest::Client;
 use log::{error, info};
+use serde_json::Value;
 
 pub struct Telegram {
     pub name: String,
@@ -104,5 +105,47 @@ impl Api for Telegram {
     async fn update_alarm<'a>(&'a self, _alarm: &'a Alarm) -> Result<(), String> {
         info!("Telegram API: Updating alarm with key: {}", self.bot_token);
         Ok(())
+    }
+
+    async fn check_connection(&self) -> Result<String, String> {
+        let client = Client::new();
+        let endpoint = format!("https://api.telegram.org/bot{}/getMe", self.bot_token);
+        let res = client
+            .get(&endpoint)
+            .send()
+            .await
+            .map_err(|err| format!("Request error: {}", err))?;
+
+        let status = res.status();
+        let body = res.text().await.map_err(|err| format!("Failed to read response: {}", err))?;
+
+        if !status.is_success() {
+            return Err(format!("HTTP {} - {}", status, body));
+        }
+
+        let value: Value = serde_json::from_str(&body).map_err(|err| format!("Invalid JSON: {}", err))?;
+        let ok = value.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+        if !ok {
+            let description = value
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(format!("Telegram error: {}", description));
+        }
+
+        let username = value
+            .get("result")
+            .and_then(|v| v.get("username"))
+            .and_then(|v| v.as_str());
+        let first_name = value
+            .get("result")
+            .and_then(|v| v.get("first_name"))
+            .and_then(|v| v.as_str());
+
+        match (username, first_name) {
+            (Some(username), _) => Ok(format!("bot: @{}", username)),
+            (None, Some(name)) => Ok(format!("bot: {}", name)),
+            _ => Ok("connected".to_string()),
+        }
     }
 }
