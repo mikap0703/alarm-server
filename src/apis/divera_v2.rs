@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use crate::alarm::Alarm;
 use crate::apis::Api;
-use log::info;
+use log::{debug, info};
 use reqwest::Client;
 use serde_json::json;
 use serde_json::Value;
@@ -81,7 +81,7 @@ impl Api for DiveraV2 {
 
         match res {
             Ok(response) => {
-                println!("{:?}", response);
+                debug!("{:?}", response);
                 if response.status().is_success() {
                     info!("Alarm triggered successfully");
                     Ok(())

@@ -110,7 +110,7 @@ impl SerialHandler {
 
         alarm.set_text(text);
 
-        print!("Alarm: {:?}", alarm);
+        info!("Alarm: {:?}", alarm);
 
         for stichwort in self.config.alarm_list.clone() {
             if lines[2].contains(stichwort.as_str()) {

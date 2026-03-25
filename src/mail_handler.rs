@@ -145,7 +145,7 @@ impl MailHandler {
 
     fn idle_loop(imap: &mut Session<Connection>, send_mails: Arc<Sender<MailData>>) {
         'idle_loop: loop {
-            info!("Warten auf neue Mails...");
+            debug!("Warten auf neue Mails...");
             let mut new_mail_id = None;
             let idle_result = imap.idle().timeout(Duration::new(120, 0)).keepalive(true).wait_while(|response| match response {
                 UnsolicitedResponse::Exists(mail_id) => {
@@ -153,31 +153,33 @@ impl MailHandler {
                     false
                 }
                 other => {
-                    print!("received {:?}", other);
+                    debug!("received {:?}", other);
                     debug!("No new mail received");
                     true
                 },
             });
+
+            if let Err(e) = idle_result {
+                error!("IDLE finished with error: {:?}", e);
+                // Sleep to avoid tight loop on persistent errors
+                thread::sleep(Duration::from_secs(10));
+                continue 'idle_loop;
+            }
 
             let new_mail_id = match new_mail_id {
                 Some(id) => id,
                 None => continue 'idle_loop,
             };
 
-            match idle_result {
-                Ok(_) => {
-                    // Fetch the mail
-                    let messages = match imap.fetch(new_mail_id.to_string(), "RFC822") {
-                        Ok(messages) => messages,
-                        Err(e) => {
-                            error!("Could not fetch mail: {:?}", e);
-                            continue 'idle_loop;
-                        }
-                    };
-                    MailHandler::parse_forward_mail(send_mails.as_ref(), messages);
+            // Fetch the mail
+            let messages = match imap.fetch(new_mail_id.to_string(), "RFC822") {
+                Ok(messages) => messages,
+                Err(e) => {
+                    error!("Could not fetch mail: {:?}", e);
+                    continue 'idle_loop;
                 }
-                Err(e) => error!("IDLE finished with error {:?}", e),
-            }
+            };
+            MailHandler::parse_forward_mail(send_mails.as_ref(), messages);
         }
     }
 

@@ -84,7 +84,7 @@ impl AlarmHandler {
             loop {
                 match recv_alarms.recv() {
                     Ok(mut alarm) => {
-                        println!("{:?}", alarm);
+                        debug!("{:?}", alarm);
                         info!("AlarmHandler received alarm: {}", alarm.title);
 
                         // apply default template
@@ -220,9 +220,9 @@ fn compare_alarms(new_alarm: &Alarm, old_alarm: &Alarm, config: &GeneralConfig) 
         let old_source = &old_alarm.origin;
         let old_source_key = config.source_priority.iter().position(|n| n == old_source);
 
-        println!("{:?}", config.source_priority);
-        println!("new: {:?} - old: {:?}", new_source, old_source);
-        println!("new: {:?} - old: {:?}", new_source_key, old_source_key);
+        debug!("{:?}", config.source_priority);
+        debug!("new: {:?} - old: {:?}", new_source, old_source);
+        debug!("new: {:?} - old: {:?}", new_source_key, old_source_key);
 
         if let Some(new_source_key) = new_source_key {
             if let Some(old_source_key) = old_source_key {
