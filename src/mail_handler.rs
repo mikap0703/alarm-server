@@ -58,6 +58,19 @@ impl MailHandler {
         Self { config, send_alarms, debug, mailparser }
     }
 
+    fn connect_imap(config: &MailConfig) -> imap::error::Result<Session<Connection>> {
+        let client = imap::ClientBuilder::new(config.host.as_str(), config.port)
+            .connect()?;
+
+        let imap = client
+            .login(config.user.as_str(), config.password.as_str())
+            .map_err(|e| e.0)?;
+
+        let mut session = imap;
+        session.select("INBOX")?;
+        Ok(session)
+    }
+
     pub fn start(&self) {
         let (send_mails, recv_mails) = flume::unbounded();
         let send_mails = Arc::new(send_mails);
@@ -72,21 +85,13 @@ impl MailHandler {
         // Start a thread for the idle loop
         if self.config.idle {
             let send_mails = Arc::clone(&send_mails);
-            let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
-                .connect()
-                .expect("Could not connect to imap server");
-
-            let mut imap = client
-                .login(self.config.user.as_str(), self.config.password.as_str())
-                .expect("Could not login to imap server");
-
-            imap.select("INBOX").expect("Could not select mailbox");
+            let config = self.config.clone();
 
             info!("{} Idle loop wird gestartet", inbox_name);
 
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
-                MailHandler::idle_loop(&mut imap, send_mails);
+                MailHandler::idle_loop(config, send_mails);
             });
             info!("Idle loop started");
         }
@@ -94,15 +99,7 @@ impl MailHandler {
         // Start a thread for the mail checking loop
         if self.config.polling {
             let send_mails = Arc::clone(&send_mails);
-            let client = imap::ClientBuilder::new(self.config.host.as_str(), self.config.port)
-                .connect()
-                .expect("Could not connect to imap server");
-
-            let mut imap = client
-                .login(self.config.user.as_str(), self.config.password.as_str())
-                .expect("Could not login to imap server");
-
-            imap.select("INBOX").expect("Could not select mailbox");
+            let config = self.config.clone();
 
             info!("{} Polling loop wird gestartet", inbox_name);
 
@@ -110,7 +107,7 @@ impl MailHandler {
 
             thread::spawn(move || {
                 // Start the idle loop and mail checking loop
-                MailHandler::polling_loop(&mut imap, send_mails, interval);
+                MailHandler::polling_loop(config, send_mails, interval);
             });
         }
 
@@ -143,9 +140,27 @@ impl MailHandler {
         }
     }
 
-    fn idle_loop(imap: &mut Session<Connection>, send_mails: Arc<Sender<MailData>>) {
+    fn idle_loop(config: MailConfig, send_mails: Arc<Sender<MailData>>) {
+        let mut imap_session: Option<Session<Connection>> = None;
+        let inbox_name = config.name.clone();
+
         'idle_loop: loop {
-            debug!("Warten auf neue Mails...");
+            if imap_session.is_none() {
+                match MailHandler::connect_imap(&config) {
+                    Ok(session) => {
+                        info!("{} IMAP session connected", inbox_name);
+                        imap_session = Some(session);
+                    }
+                    Err(e) => {
+                        error!("{} Could not connect to imap server: {:?}", inbox_name, e);
+                        thread::sleep(Duration::from_secs(30));
+                        continue 'idle_loop;
+                    }
+                }
+            }
+
+            let imap = imap_session.as_mut().unwrap();
+            debug!("{} Warten auf neue Mails...", inbox_name);
             let mut new_mail_id = None;
             let idle_result = imap.idle().timeout(Duration::new(120, 0)).keepalive(true).wait_while(|response| match response {
                 UnsolicitedResponse::Exists(mail_id) => {
@@ -153,14 +168,15 @@ impl MailHandler {
                     false
                 }
                 other => {
-                    debug!("received {:?}", other);
-                    debug!("No new mail received");
+                    debug!("{} received {:?}", inbox_name, other);
+                    debug!("{} No new mail received", inbox_name);
                     true
                 },
             });
 
             if let Err(e) = idle_result {
-                error!("IDLE finished with error: {:?}", e);
+                error!("{} IDLE finished with error: {:?}", inbox_name, e);
+                imap_session = None;
                 // Sleep to avoid tight loop on persistent errors
                 thread::sleep(Duration::from_secs(10));
                 continue 'idle_loop;
@@ -175,7 +191,8 @@ impl MailHandler {
             let messages = match imap.fetch(new_mail_id.to_string(), "RFC822") {
                 Ok(messages) => messages,
                 Err(e) => {
-                    error!("Could not fetch mail: {:?}", e);
+                    error!("{} Could not fetch mail: {:?}", inbox_name, e);
+                    imap_session = None;
                     continue 'idle_loop;
                 }
             };
@@ -183,18 +200,36 @@ impl MailHandler {
         }
     }
 
-    fn polling_loop(imap: &mut Session<Connection>, send_mails: Arc<Sender<MailData>>, interval: Duration) {
+    fn polling_loop(config: MailConfig, send_mails: Arc<Sender<MailData>>, interval: Duration) {
         // Track the most recent message UID we've processed
         let mut last_processed_uid = 0;
+        let mut imap_session: Option<Session<Connection>> = None;
+        let inbox_name = config.name.clone();
 
         loop {
-            debug!("Periodically checking for new mail...");
+            if imap_session.is_none() {
+                match MailHandler::connect_imap(&config) {
+                    Ok(session) => {
+                        info!("{} IMAP session connected (polling)", inbox_name);
+                        imap_session = Some(session);
+                    }
+                    Err(e) => {
+                        error!("{} Could not connect to imap server (polling): {:?}", inbox_name, e);
+                        thread::sleep(Duration::from_secs(30));
+                        continue;
+                    }
+                }
+            }
+
+            let imap = imap_session.as_mut().unwrap();
+            debug!("{} Periodically checking for new mail...", inbox_name);
 
             // First, fetch the UID of the last message using '*' notation
             let uid_fetch = match imap.fetch("*", "(UID)") {
                 Ok(fetches) => fetches,
                 Err(e) => {
-                    error!("Could not fetch last message UID: {:?}", e);
+                    error!("{} Could not fetch last message UID: {:?}", inbox_name, e);
+                    imap_session = None;
                     thread::sleep(interval);
                     continue;
                 }
@@ -204,7 +239,7 @@ impl MailHandler {
             let latest_uid = match uid_fetch.iter().next().and_then(|msg| msg.uid) {
                 Some(uid) => uid,
                 None => {
-                    debug!("No messages in mailbox");
+                    debug!("{} No messages in mailbox", inbox_name);
                     thread::sleep(interval);
                     continue;
                 }
@@ -216,19 +251,20 @@ impl MailHandler {
                 let messages: Fetches = match imap.fetch("*", "RFC822") {
                     Ok(messages) => messages,
                     Err(e) => {
-                        error!("Could not fetch mail: {:?}", e);
+                        error!("{} Could not fetch mail: {:?}", inbox_name, e);
+                        imap_session = None;
                         thread::sleep(interval);
                         continue;
                     }
                 };
 
-                info!("New mail found (UID: {})...forwarding", latest_uid);
+                info!("{} New mail found (UID: {})...forwarding", inbox_name, latest_uid);
                 MailHandler::parse_forward_mail(send_mails.as_ref(), messages);
 
                 // Update the last processed UID
                 last_processed_uid = latest_uid;
             } else {
-                debug!("No new mail found");
+                debug!("{} No new mail found", inbox_name);
             }
 
             // Sleep for selected interval
@@ -349,7 +385,7 @@ impl MailHandler {
 
         match self.mailparser.parse(&mail_data.text_body, &mail_data.html_body, &mut alarm, self.config.clone()) {
             Ok(_) => {
-                self.send_alarms.send(alarm).unwrap();
+                self.send_alarms.send(alarm).ok();
                 true
             }
             Err(e) => {
