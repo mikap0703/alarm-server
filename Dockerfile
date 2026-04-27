@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y \
     libudev1 \
     fontconfig \
     libfreetype6 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -37,5 +38,8 @@ RUN mkdir -p /app/config
 COPY --from=builder /alarm-server/target/release/alarm-server /app/alarm-server
 COPY --from=builder /usr/local/cargo/bin/typst /usr/local/bin/typst
 RUN chmod +x /app/alarm-server
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:${HEALTHCHECK_PORT:-8080}/ || exit 1
 
 CMD ["./alarm-server"]

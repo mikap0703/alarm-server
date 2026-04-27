@@ -250,6 +250,27 @@ fn log_startup_config(configs: &config::Configs) {
     }
 }
 
+async fn start_healthcheck_server(port: u16) {
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            error!("Could not bind healthcheck server to {}: {}", addr, e);
+            return;
+        }
+    };
+    info!("Healthcheck server listening on {}", addr);
+
+    loop {
+        if let Ok((mut socket, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let response = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
+                let _ = tokio::io::AsyncWriteExt::write_all(&mut socket, response.as_bytes()).await;
+            });
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(e) = setup_logger() {
@@ -266,6 +287,10 @@ async fn main() {
     };
 
     log_startup_config(&configs);
+
+    // Start healthcheck server in the background
+    tokio::spawn(start_healthcheck_server(8112));
+
     if configs.general.delay > 0 {
         info!(
             "Warte {}s nach Konfig-Ausgabe vor dem Start der Handler...",
